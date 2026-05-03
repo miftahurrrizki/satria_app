@@ -221,12 +221,12 @@ CREATE TABLE master.app_config (
 
 -- ── Risk Level Reference ──────────────────────────────────────
 INSERT INTO master.risk_level_ref (kode, label, warna_hex, warna_bg, warna_text, skor_min, skor_max, urutan) VALUES
-('E',  'Extreme',       '#dc2626', 'bg-red-100',    'text-red-700',    45, 54, 1),
-('T',  'Tinggi',        '#ea580c', 'bg-orange-100', 'text-orange-700', 35, 44, 2),
-('MT', 'Medium Tinggi', '#d97706', 'bg-amber-100',  'text-amber-700',  25, 34, 3),
-('M',  'Medium',        '#ca8a04', 'bg-yellow-100', 'text-yellow-800', 15, 24, 4),
-('RM', 'Rendah Medium', '#65a30d', 'bg-lime-100',   'text-lime-700',   10, 14, 5),
-('R',  'Rendah',        '#16a34a', 'bg-green-100',  'text-green-700',   1,  9, 6)
+('E',  'Ekstrim',          '#dc2626', 'bg-red-100',    'text-red-700',    20, 25, 1),
+('T',  'Tinggi',           '#ea580c', 'bg-orange-100', 'text-orange-700', 15, 19, 2),
+('MT', 'Menengah Tinggi',  '#d97706', 'bg-amber-100',  'text-amber-700',  10, 14, 3),
+('M',  'Menengah',         '#ca8a04', 'bg-yellow-100', 'text-yellow-800',  5,  9, 4),
+('RM', 'Rendah Menengah',  '#65a30d', 'bg-lime-100',   'text-lime-700',    4,  4, 5),
+('R',  'Rendah',           '#16a34a', 'bg-green-100',  'text-green-700',   1,  3, 6)
 ON CONFLICT (kode) DO UPDATE SET
     label      = EXCLUDED.label,
     warna_hex  = EXCLUDED.warna_hex,

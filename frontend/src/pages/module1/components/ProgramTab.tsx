@@ -4,7 +4,7 @@ import {
   Plus, CheckCircle2, Clock,
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Users, CalendarDays, X, AlertTriangle, Hourglass, PlayCircle, Flag, Search,
-  Briefcase, TrendingDown,
+  Briefcase, TrendingDown, Trash2, RotateCcw,
 } from 'lucide-react';
 import { annualPlansApi, kalenderKerjaApi, settingsApi } from '../../../services/api';
 import { AnnualAuditPlan, JenisProgram, StatusPKPT } from '../../../types';
@@ -51,6 +51,37 @@ function deriveTimelineStatus(p: { tanggal_mulai?: string; tanggal_selesai?: str
   return 'running';
 }
 
+function deriveTimelineDuration(key: TimelineKey, p: { tanggal_mulai?: string; tanggal_selesai?: string }): string | null {
+  const MS_DAY = 1000 * 60 * 60 * 24;
+  const today  = new Date(); today.setHours(0, 0, 0, 0);
+
+  if (key === 'running' || key === 'near_deadline') {
+    const mulai = p.tanggal_mulai ? new Date(p.tanggal_mulai) : null;
+    if (!mulai) return null;
+    mulai.setHours(0, 0, 0, 0);
+    const days = Math.floor((today.getTime() - mulai.getTime()) / MS_DAY);
+    if (days < 1)  return 'Hari ini';
+    if (days < 30) return `${days} hari`;
+    const months = Math.floor(days / 30);
+    const sisa   = days % 30;
+    return sisa > 0 ? `${months} bln ${sisa} hr` : `${months} bulan`;
+  }
+
+  if (key === 'overdue') {
+    const selesai = p.tanggal_selesai ? new Date(p.tanggal_selesai) : null;
+    if (!selesai) return null;
+    selesai.setHours(0, 0, 0, 0);
+    const days = Math.floor((today.getTime() - selesai.getTime()) / MS_DAY);
+    if (days < 1)  return 'Hari ini';
+    if (days < 30) return `+${days} hari`;
+    const months = Math.floor(days / 30);
+    const sisa   = days % 30;
+    return sisa > 0 ? `+${months} bln ${sisa} hr` : `+${months} bulan`;
+  }
+
+  return null;
+}
+
 export default function ProgramTab({ tahun }: Props) {
   const qc = useQueryClient();
   const { user } = useAuthStore();
@@ -68,6 +99,9 @@ export default function ProgramTab({ tahun }: Props) {
   const [editProgram, setEditProgram] = useState<AnnualAuditPlan | null>(null);
   const [detailId, setDetailId]       = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AnnualAuditPlan | null>(null);
+  const [showTrash, setShowTrash]     = useState(false);
+  const [purgeAllConfirm, setPurgeAllConfirm] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<string | null>(null);
 
   const LIMIT = 15;
 
@@ -115,6 +149,14 @@ export default function ProgramTab({ tahun }: Props) {
     },
     staleTime: 60_000,
   });
+  const { data: trashRes } = useQuery({
+    queryKey: ['annual-plans-trash', tahun],
+    queryFn: () => annualPlansApi.getTrash(tahun).then((r) => r.data.data ?? []),
+    enabled: ['kepala_spi', 'admin_spi', 'pengendali_teknis'].includes(user?.role ?? ''),
+    staleTime: 30_000,
+  });
+  const trashItems = trashRes ?? [];
+
   const { data: kalenderRes } = useQuery({
     queryKey: ['kalender-kerja-program-tab', tahun],
     queryFn: () => kalenderKerjaApi.get(tahun),
@@ -141,6 +183,38 @@ export default function ProgramTab({ tahun }: Props) {
     },
   });
 
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => annualPlansApi.restore(id),
+    onSuccess: () => {
+      toast.success('Program berhasil dipulihkan');
+      qc.invalidateQueries({ queryKey: ['annual-plans'] });
+      qc.invalidateQueries({ queryKey: ['annual-plans-trash', tahun] });
+    },
+    onError: () => toast.error('Gagal memulihkan program'),
+  });
+
+  const purgeMut = useMutation({
+    mutationFn: (id: string) => annualPlansApi.purge(id),
+    onSuccess: () => {
+      toast.success('Program dihapus permanen');
+      setPurgeTarget(null);
+      qc.invalidateQueries({ queryKey: ['annual-plans-trash', tahun] });
+    },
+    onError: () => { toast.error('Gagal menghapus permanen'); setPurgeTarget(null); },
+  });
+
+  const purgeAllMut = useMutation({
+    mutationFn: () => annualPlansApi.purgeAll(tahun),
+    onSuccess: (res) => {
+      const count = res.data.data?.count ?? 0;
+      toast.success(`${count} program dihapus permanen dari trash`);
+      setPurgeAllConfirm(false);
+      setShowTrash(false);
+      qc.invalidateQueries({ queryKey: ['annual-plans-trash', tahun] });
+    },
+    onError: () => { toast.error('Gagal menghapus semua'); setPurgeAllConfirm(false); },
+  });
+
   const finalizeMut = useMutation({
     mutationFn: (id: string) => annualPlansApi.finalize(id),
     onSuccess: () => {
@@ -153,7 +227,7 @@ export default function ProgramTab({ tahun }: Props) {
   });
 
   const canCreate   = ['kepala_spi', 'admin_spi', 'pengendali_teknis'].includes(user?.role ?? '');
-  const canFinalize = user?.role === 'kepala_spi';
+  const canFinalize = ['kepala_spi', 'admin_spi'].includes(user?.role ?? '');
 
   function fmtDate(d?: string) {
     if (!d) return '—';
@@ -184,11 +258,23 @@ export default function ProgramTab({ tahun }: Props) {
       {/* ── Header + Create ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-slate-800">Daftar Program Kerja Tahun {tahun}</h2>
-        {canCreate && (
-          <button type="button" onClick={() => { setEditProgram(null); setFormOpen(true); }} className="btn-primary w-full sm:w-auto justify-center">
-            <Plus className="w-4 h-4" /> Buat Program Kerja
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canFinalize && trashItems.length > 0 && (
+            <button
+              onClick={() => setShowTrash((v) => !v)}
+              className={`btn-secondary gap-2 ${showTrash ? 'bg-red-50 border-red-200 text-red-700' : ''}`}
+            >
+              <Trash2 className="w-4 h-4" />
+              Trash
+              <span className="text-[11px] font-bold px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full">{trashItems.length}</span>
+            </button>
+          )}
+          {canCreate && (
+            <button type="button" onClick={() => { setEditProgram(null); setFormOpen(true); }} className="btn-primary w-full sm:w-auto justify-center">
+              <Plus className="w-4 h-4" /> Buat Program Kerja
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Filters ── */}
@@ -429,8 +515,9 @@ export default function ProgramTab({ tahun }: Props) {
                   const SBadge = STATUS_BADGE[plan.status_pkpt as StatusPKPT];
                   const SIcon  = SBadge?.icon ?? Clock;
                   const rowNum = (page - 1) * LIMIT + idx + 1;
-                  const timelineKey  = deriveTimelineStatus(plan as any);
-                  const timelineInfo = TIMELINE_BADGE[timelineKey];
+                  const timelineKey      = deriveTimelineStatus(plan as any);
+                  const timelineInfo     = TIMELINE_BADGE[timelineKey];
+                  const timelineDuration = deriveTimelineDuration(timelineKey, plan as any);
                   const TIcon = timelineInfo.icon;
 
                   return (
@@ -471,9 +558,18 @@ export default function ProgramTab({ tahun }: Props) {
                         <p className="text-slate-400">s/d {fmtDate(plan.tanggal_selesai)}</p>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`badge ${timelineInfo.cls}`}>
-                          <TIcon className="w-3 h-3" /> {timelineInfo.label}
-                        </span>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className={`badge ${timelineInfo.cls}`}>
+                            <TIcon className="w-3 h-3" /> {timelineInfo.label}
+                          </span>
+                          {timelineDuration && (
+                            <span className={`text-[10px] font-medium pl-0.5 ${
+                              timelineKey === 'overdue' ? 'text-red-600' : 'text-slate-500'
+                            }`}>
+                              {timelineKey === 'overdue' ? `Lewat ${timelineDuration}` : `Berjalan ${timelineDuration}`}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="badge bg-blue-50 text-blue-700 border border-blue-200">{plan.kategori_program}</span>
@@ -513,6 +609,127 @@ export default function ProgramTab({ tahun }: Props) {
           </div>
         )}
       </div>
+
+      {/* ── Trash Panel ── */}
+      {canFinalize && showTrash && (
+        <div className="card overflow-hidden border-red-100">
+          <div className="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-600" />
+              <span className="font-semibold text-red-800 text-sm">Trash — Program Terhapus ({trashItems.length})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {trashItems.length > 0 && (
+                <button
+                  onClick={() => setPurgeAllConfirm(true)}
+                  className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 bg-white rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors"
+                >
+                  Hapus Permanen Semua
+                </button>
+              )}
+              <button onClick={() => setShowTrash(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          {trashItems.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-slate-400">Trash kosong</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {trashItems.map((item) => (
+                <div key={item.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-800 text-sm truncate">{item.judul_program}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {item.jenis_program} · {item.kategori_program} · Dihapus: {new Date(item.deleted_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => restoreMut.mutate(item.id)}
+                      disabled={restoreMut.isPending}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-1.5 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Pulihkan
+                    </button>
+                    <button
+                      onClick={() => setPurgeTarget(item.id)}
+                      disabled={purgeMut.isPending}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-red-600 border border-red-200 bg-red-50 rounded-lg px-3 py-1.5 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Hapus Permanen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Purge single confirm ── */}
+      {purgeTarget && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm" onClick={() => !purgeMut.isPending && setPurgeTarget(null)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Hapus Permanen?</p>
+                  <p className="text-sm text-slate-500 mt-1">Program ini akan dihapus dari sistem secara permanen dan tidak dapat dipulihkan.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setPurgeTarget(null)} disabled={purgeMut.isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button
+                  onClick={() => purgeMut.mutate(purgeTarget)}
+                  disabled={purgeMut.isPending}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {purgeMut.isPending ? 'Menghapus...' : 'Ya, Hapus Permanen'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Purge all confirm ── */}
+      {purgeAllConfirm && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm" onClick={() => !purgeAllMut.isPending && setPurgeAllConfirm(false)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Hapus Semua dari Trash?</p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    <strong>{trashItems.length} program</strong> di trash akan dihapus permanen. Aksi ini tidak dapat dibatalkan.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setPurgeAllConfirm(false)} disabled={purgeAllMut.isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button
+                  onClick={() => purgeAllMut.mutate()}
+                  disabled={purgeAllMut.isPending}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {purgeAllMut.isPending ? 'Menghapus...' : `Hapus ${trashItems.length} Program`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Delete confirm ── */}
       {deleteTarget && (

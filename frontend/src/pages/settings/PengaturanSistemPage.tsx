@@ -12,7 +12,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layers, Target, Scale, Tags, Calendar, ChevronDown, Settings } from 'lucide-react';
+import { Layers, Target, Scale, Tags, Calendar, Settings, Plus, ChevronRight, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   settingsApi, HosKategori, SasaranStrategis, BobotPeran, KelompokPenugasan,
@@ -34,19 +34,15 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 export default function PengaturanSistemPage() {
   const [activeTab, setActiveTab] = useState<TabId>('hos');
   const [tahun, setTahun] = useState(CURRENT_YEAR);
-  
-  // State untuk mengontrol dropdown custom tahun
-  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
 
   return (
     <div className="space-y-6 pb-8">
-      
+
       {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        
+
         {/* Title & Icon Header */}
         <div className="flex items-center gap-3.5">
-          {/* Kotak Icon Header seperti pada Log Aktivitas */}
           <div className="flex items-center justify-center w-11 h-11 bg-slate-100 rounded-xl border border-slate-200/60">
             <Settings className="w-5 h-5 text-slate-700" />
           </div>
@@ -56,62 +52,24 @@ export default function PengaturanSistemPage() {
           </div>
         </div>
 
-        {/* Year Picker (Filter Tahun Custom) */}
+        {/* Filter Tahun — same style as Modul 1 (PKPTPage) */}
         {(activeTab === 'hos' || activeTab === 'sasaran' || activeTab === 'bobot') && (
-          <div className="flex items-center border border-indigo-200 rounded-lg bg-white shadow-sm overflow-visible h-9">
-            
-            {/* Label Area */}
-            <div className="flex items-center gap-2 px-3 h-full">
-              <Calendar className="w-4 h-4 text-slate-500" strokeWidth={2} />
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mr-1">
-                TAHUN AUDIT
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
+            <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
+              <Calendar className="w-4 h-4 text-slate-500" />
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider hidden sm:block">
+                Tahun
               </span>
             </div>
-
-            {/* Garis Pemisah (Divider) */}
-            <div className="w-px h-full bg-indigo-100" />
-
-            {/* Dropdown Trigger & Menu */}
-            <div className="relative h-full">
-              {/* Tombol Pemicu Dropdown */}
-              <button
-                onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-                className="flex items-center justify-between gap-2 px-3 h-full font-bold text-slate-800 hover:bg-slate-50 transition-colors rounded-r-lg min-w-[70px]"
+            <div className="relative">
+              <select
+                value={tahun}
+                onChange={(e) => setTahun(Number(e.target.value))}
+                className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
               >
-                {tahun}
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Isi Dropdown (Custom List) */}
-              {isYearDropdownOpen && (
-                <>
-                  {/* Backdrop tak kasat mata untuk menutup dropdown saat klik di luar */}
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setIsYearDropdownOpen(false)} 
-                  />
-                  
-                  {/* Kotak Pilihan */}
-                  <div className="absolute right-0 top-full mt-1 w-full min-w-[90px] bg-white border border-slate-200 rounded-md shadow-lg z-50 overflow-hidden py-1">
-                    {YEAR_OPTIONS.map((y) => (
-                      <button
-                        key={y}
-                        onClick={() => {
-                          setTahun(y);
-                          setIsYearDropdownOpen(false); // Tutup dropdown setelah memilih
-                        }}
-                        className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${
-                          y === tahun 
-                            ? 'bg-blue-600 text-white font-medium' // Warna biru saat terpilih
-                            : 'text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        {y}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <ChevronRight className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
             </div>
           </div>
         )}
@@ -161,6 +119,7 @@ function HosTab({ tahun }: { tahun: number }) {
   const canEdit = role === 'kepala_spi' || role === 'admin_spi';
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<HosKategori> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<HosKategori | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['hos-kategori', tahun],
@@ -179,7 +138,8 @@ function HosTab({ tahun }: { tahun: number }) {
   });
   const deleteMut = useMutation({
     mutationFn: settingsApi.deleteHosKategori,
-    onSuccess: () => { toast.success('Dihapus'); qc.invalidateQueries({ queryKey: ['hos-kategori'] }); },
+    onSuccess: () => { toast.success('Perspektif dihapus'); qc.invalidateQueries({ queryKey: ['hos-kategori'] }); setDeleteTarget(null); },
+    onError: (e: { response?: { data?: { message?: string } } }) => toast.error(e?.response?.data?.message ?? 'Gagal menghapus'),
   });
 
   return (
@@ -189,9 +149,9 @@ function HosTab({ tahun }: { tahun: number }) {
         {canEdit && (
           <button
             onClick={() => setEditing({ kode: '', nama_perspektif: '', urutan: 0 })}
-            className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+            className="btn-primary"
           >
-            + Tambah Perspektif
+            <Plus className="w-4 h-4" /> Tambah Perspektif
           </button>
         )}
       </div>
@@ -221,7 +181,7 @@ function HosTab({ tahun }: { tahun: number }) {
                 {canEdit && (
                   <td className="px-4 py-3 text-right space-x-2">
                     <button onClick={() => setEditing(k)} className="text-primary-600 hover:underline text-xs font-medium">Edit</button>
-                    <button onClick={() => { if (confirm(`Hapus ${k.nama_perspektif}?`)) deleteMut.mutate(k.id); }} className="text-red-600 hover:underline text-xs font-medium">Hapus</button>
+                    <button onClick={() => setDeleteTarget(k)} className="text-red-600 hover:underline text-xs font-medium">Hapus</button>
                   </td>
                 )}
               </tr>
@@ -253,6 +213,15 @@ function HosTab({ tahun }: { tahun: number }) {
           </FormRow>
         </FormModal>
       )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={`Perspektif "${deleteTarget.nama_perspektif}"`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={deleteMut.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -260,24 +229,34 @@ function HosTab({ tahun }: { tahun: number }) {
 // ════════════════════════════════════════════════════════════
 //  TAB 2: SASARAN STRATEGIS
 // ════════════════════════════════════════════════════════════
+
+// Sasaran dianggap "anak" jika kodenya mengandung titik (F.1.1, IBP.2.1, dsb)
+function isChildKode(kode: string | null) {
+  return !!kode && kode.includes('.');
+}
+
+// Konversi kode induk (C1, IBP2) ke prefix anak (C.1., IBP.2.)
+function childPrefix(parentKode: string): string {
+  const m = parentKode.match(/^([A-Za-z]+)(\d+)$/);
+  return m ? `${m[1]}.${m[2]}.` : `${parentKode}.`;
+}
+
 function SasaranTab({ tahun }: { tahun: number }) {
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = ['kepala_spi', 'admin_spi', 'pengendali_teknis', 'anggota_tim'].includes(role ?? '');
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<SasaranStrategis> | null>(null);
-  const [filterKategori, setFilterKategori] = useState<string>('');
+  const [deleteTarget, setDeleteTarget] = useState<SasaranStrategis | null>(null);
 
   const { data: kategoris } = useQuery({
     queryKey: ['hos-kategori', tahun],
     queryFn: () => settingsApi.getHosKategoris(tahun).then((r) => r.data.data ?? []),
   });
 
+  // Selalu ambil semua (tidak difilter per kategori), biar grouping di client
   const { data, isLoading } = useQuery({
-    queryKey: ['sasaran-strategis', tahun, filterKategori],
-    queryFn: () => settingsApi.getSasaranStrategis({
-      tahun,
-      ...(filterKategori ? { kategori_id: filterKategori } : {}),
-    }).then((r) => r.data.data ?? []),
+    queryKey: ['sasaran-strategis', tahun],
+    queryFn: () => settingsApi.getSasaranStrategis({ tahun }).then((r) => r.data.data ?? []),
   });
 
   const createMut = useMutation({
@@ -291,101 +270,301 @@ function SasaranTab({ tahun }: { tahun: number }) {
   });
   const deleteMut = useMutation({
     mutationFn: settingsApi.deleteSasaranStrategis,
-    onSuccess: () => { toast.success('Dihapus'); qc.invalidateQueries({ queryKey: ['sasaran-strategis'] }); },
+    onSuccess: () => { toast.success('Sasaran dihapus'); qc.invalidateQueries({ queryKey: ['sasaran-strategis'] }); setDeleteTarget(null); },
+    onError: (e: { response?: { data?: { message?: string } } }) => toast.error(e?.response?.data?.message ?? 'Gagal menghapus'),
   });
 
+  // Group sasaran per perspektif — interleaved: parent → its children → next parent → …
+  const grouped = useMemo(() => {
+    const all = data ?? [];
+    return (kategoris ?? []).map((kat) => {
+      const katItems = all.filter((s) => s.kategori_id === kat.id);
+      const byKode = (a: SasaranStrategis, b: SasaranStrategis) =>
+        (a.kode ?? '').localeCompare(b.kode ?? '', 'id', { numeric: true });
+      const parents  = katItems.filter((s) => !isChildKode(s.kode)).sort(byKode);
+      const children = katItems.filter((s) =>  isChildKode(s.kode)).sort(byKode);
+      const sorted: SasaranStrategis[] = [];
+      for (const p of parents) {
+        sorted.push(p);
+        sorted.push(...children.filter((c) => c.kode?.startsWith(childPrefix(p.kode ?? ''))));
+      }
+      // orphan children with no matching parent
+      sorted.push(...children.filter((c) => !parents.some((p) => c.kode?.startsWith(childPrefix(p.kode ?? '')))));
+      return { kategori: kat, items: sorted };
+    }).filter(() => true);
+  }, [data, kategoris]);
+
+  const totalSasaran = (data ?? []).length;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-500">Filter Perspektif</label>
-          <select
-            value={filterKategori}
-            onChange={(e) => setFilterKategori(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white"
-          >
-            <option value="">Semua</option>
-            {(kategoris ?? []).map((k) => (
-              <option key={k.id} value={k.id}>{k.kode} — {k.nama_perspektif}</option>
-            ))}
-          </select>
+          <span className="text-sm text-slate-500">
+            Total <b className="text-slate-800">{totalSasaran}</b> sasaran strategis tahun {tahun}
+          </span>
+          {isLoading && <span className="text-xs text-slate-400">Memuat...</span>}
         </div>
         {canEdit && (
           <button
-            onClick={() => setEditing({ kategori_id: filterKategori || (kategoris?.[0]?.id ?? ''), kode: '', nama: '' })}
-            className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+            onClick={() => setEditing({ kategori_id: kategoris?.[0]?.id ?? '', kode: '', nama: '' })}
+            className="btn-primary"
           >
-            + Tambah Sasaran
+            <Plus className="w-4 h-4" /> Tambah Sasaran
           </button>
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">Perspektif</th>
-              <th className="px-4 py-3 text-left">Kode</th>
-              <th className="px-4 py-3 text-left">Nama Sasaran</th>
-              <th className="px-4 py-3 text-left">Dibuat oleh</th>
-              {canEdit && <th className="px-4 py-3 text-right">Aksi</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Memuat...</td></tr>}
-            {!isLoading && (data ?? []).length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Belum ada sasaran strategis.</td></tr>
-            )}
-            {(data ?? []).map((s) => (
-              <tr key={s.id}>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-                    {s.kategori_kode ?? '-'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">{s.kode ?? '-'}</td>
-                <td className="px-4 py-3 font-medium">{s.nama}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs">{s.created_by_nama ?? '-'}</td>
+      {/* Grouped cards per perspektif */}
+      {isLoading ? (
+        <div className="card p-8 text-center text-slate-400">Memuat...</div>
+      ) : (kategoris ?? []).length === 0 ? (
+        <div className="card p-8 text-center text-slate-400">
+          Belum ada perspektif. Tambahkan perspektif di tab House of Strategy terlebih dahulu.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map(({ kategori, items }) => (
+            <div key={kategori.id} className="card overflow-hidden border border-slate-200">
+              {/* Perspektif header */}
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-black text-slate-700 font-mono">{kategori.kode}</span>
+                  <span className="text-sm font-semibold text-slate-700">{kategori.nama_perspektif}</span>
+                  <span className="badge text-[11px] bg-slate-100 text-slate-700">{items.length} sasaran</span>
+                </div>
                 {canEdit && (
-                  <td className="px-4 py-3 text-right space-x-2">
-                    <button onClick={() => setEditing(s)} className="text-primary-600 hover:underline text-xs font-medium">Edit</button>
-                    <button onClick={() => { if (confirm(`Hapus ${s.nama}?`)) deleteMut.mutate(s.id); }} className="text-red-600 hover:underline text-xs font-medium">Hapus</button>
-                  </td>
+                  <button
+                    onClick={() => setEditing({ kategori_id: kategori.id, kode: '', nama: '' })}
+                    className="text-xs font-semibold text-slate-700 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah di sini
+                  </button>
                 )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </div>
 
+              {/* Items */}
+              {items.length === 0 ? (
+                <div className="px-4 py-6 text-center text-slate-400 text-sm">
+                  Belum ada sasaran untuk perspektif ini.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {items.map((s) => {
+                    const isChild = isChildKode(s.kode);
+                    return (
+                      <div
+                        key={s.id}
+                        className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50/60 transition-colors ${isChild ? 'pl-10' : ''}`}
+                      >
+                        {/* Indentation indicator */}
+                        {isChild && (
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0 -ml-6" />
+                        )}
+
+                        {/* Kode + Nama inline (same line, kode never wraps) */}
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <code className={`text-xs font-bold whitespace-nowrap flex-shrink-0 ${isChild ? 'text-slate-500' : 'text-slate-700 font-black'}`}>
+                            {s.kode ?? '—'}
+                          </code>
+                          <p className={`text-sm truncate ${isChild ? 'text-slate-600' : 'text-slate-800 font-semibold'}`}>
+                            {s.nama}
+                          </p>
+                        </div>
+
+                        {/* Dibuat oleh */}
+                        <span className="text-[11px] text-slate-400 flex-shrink-0 hidden sm:block">
+                          {s.created_by_nama ?? '—'}
+                        </span>
+
+                        {/* Aksi */}
+                        {canEdit && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => setEditing(s)}
+                              className="px-2.5 py-1 text-xs font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(s)}
+                              className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Form Modal */}
       {editing && (
-        <FormModal
-          title={editing.id ? 'Edit Sasaran' : 'Tambah Sasaran Strategis'}
+        <SasaranFormModal
+          editing={editing}
+          kategoris={kategoris ?? []}
+          allSasaran={data ?? []}
           onClose={() => setEditing(null)}
           onSubmit={() => editing.id
             ? updateMut.mutate({ ...editing, id: editing.id! })
             : createMut.mutate(editing)}
+          onChange={setEditing}
           loading={createMut.isPending || updateMut.isPending}
-        >
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={`Sasaran strategis "${deleteTarget.nama}"`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id!)}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={deleteMut.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+function SasaranFormModal({
+  editing, kategoris, allSasaran, onClose, onSubmit, onChange, loading,
+}: {
+  editing: Partial<SasaranStrategis>;
+  kategoris: HosKategori[];
+  allSasaran: SasaranStrategis[];
+  onClose: () => void;
+  onSubmit: () => void;
+  onChange: (v: Partial<SasaranStrategis>) => void;
+  loading?: boolean;
+}) {
+  const isEdit = !!editing.id;
+
+  // Sasaran induk = semua sasaran di perspektif yang sama, yang bukan child (tidak ada titik)
+  const parentOptions = useMemo(() =>
+    allSasaran.filter(
+      (s) => s.kategori_id === editing.kategori_id && !isChildKode(s.kode) && s.id !== editing.id,
+    ),
+  [allSasaran, editing.kategori_id, editing.id]);
+
+  // Perspektif yang dipilih
+  const selectedKat = kategoris.find((k) => k.id === editing.kategori_id);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800">{isEdit ? 'Edit Sasaran Strategis' : 'Tambah Sasaran Strategis'}</h3>
+            {selectedKat && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                Perspektif: <b className="text-slate-600">{selectedKat.kode} — {selectedKat.nama_perspektif}</b>
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+
+          {/* Perspektif */}
           <FormRow label="Perspektif" required>
-            <select className="input" value={editing.kategori_id ?? ''} onChange={(e) => setEditing({ ...editing, kategori_id: e.target.value })}>
+            <select
+              className="input"
+              value={editing.kategori_id ?? ''}
+              onChange={(e) => onChange({ ...editing, kategori_id: e.target.value, kode: '' })}
+            >
               <option value="">— Pilih perspektif —</option>
-              {(kategoris ?? []).map((k) => (
+              {kategoris.map((k) => (
                 <option key={k.id} value={k.id}>{k.kode} — {k.nama_perspektif}</option>
               ))}
             </select>
           </FormRow>
-          <FormRow label="Kode (opsional)">
-            <input className="input" value={editing.kode ?? ''} onChange={(e) => setEditing({ ...editing, kode: e.target.value })} placeholder="LG.1.1" />
+
+          {/* Sasaran Induk (opsional) — muncul jika ada parent options */}
+          {editing.kategori_id && parentOptions.length > 0 && (
+            <FormRow label="Sasaran Induk">
+              <select
+                className="input"
+                value={editing.kode?.split('.').slice(0, -1).join('.') ?? ''}
+                onChange={(e) => {
+                  const parentKode = e.target.value;
+                  if (parentKode) {
+                    // Auto-set kode prefix berdasarkan parent
+                    const parent = allSasaran.find((s) => s.kode === parentKode);
+                    const parentNum = parentKode.replace(/\D/g, '');
+                    onChange({ ...editing, kode: `${selectedKat?.kode ?? ''}.${parentNum}.` });
+                  } else {
+                    onChange({ ...editing, kode: '' });
+                  }
+                }}
+              >
+                <option value="">— Sasaran ini adalah induk (top-level) —</option>
+                {parentOptions.map((p) => (
+                  <option key={p.id} value={p.kode ?? ''}>
+                    {p.kode} — {p.nama}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Pilih induk jika ini adalah sub-sasaran (contoh: F.1.1 di bawah F1).
+              </p>
+            </FormRow>
+          )}
+
+          {/* Kode */}
+          <FormRow label="Kode">
+            <input
+              className="input font-mono"
+              value={editing.kode ?? ''}
+              onChange={(e) => onChange({ ...editing, kode: e.target.value })}
+              placeholder={selectedKat ? `${selectedKat.kode}1 atau ${selectedKat.kode}.1.1` : 'F1 atau F.1.1'}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Format induk: <code className="bg-slate-100 px-1 rounded">{selectedKat?.kode ?? 'F'}1</code> ·
+              Format sub-sasaran: <code className="bg-slate-100 px-1 rounded">{selectedKat?.kode ?? 'F'}.1.1</code>
+            </p>
           </FormRow>
+
+          {/* Nama */}
           <FormRow label="Nama Sasaran" required>
-            <input className="input" value={editing.nama ?? ''} onChange={(e) => setEditing({ ...editing, nama: e.target.value })} placeholder="% Implementasi GRC" />
+            <input
+              className="input"
+              value={editing.nama ?? ''}
+              onChange={(e) => onChange({ ...editing, nama: e.target.value })}
+              placeholder="% Implementasi GRC"
+            />
           </FormRow>
+
+          {/* Deskripsi */}
           <FormRow label="Deskripsi">
-            <textarea className="input min-h-[64px]" value={editing.deskripsi ?? ''} onChange={(e) => setEditing({ ...editing, deskripsi: e.target.value })} />
+            <textarea
+              className="input min-h-[64px]"
+              value={editing.deskripsi ?? ''}
+              onChange={(e) => onChange({ ...editing, deskripsi: e.target.value })}
+            />
           </FormRow>
-        </FormModal>
-      )}
+        </div>
+
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary">Batal</button>
+          <button
+            onClick={onSubmit}
+            disabled={loading || !editing.kategori_id || !editing.nama}
+            className="btn-primary disabled:opacity-50"
+          >
+            {loading ? 'Menyimpan...' : 'Simpan'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -412,8 +591,8 @@ function BobotTab({ tahun }: { tahun: number }) {
   const rows = draft ?? data ?? [];
 
   return (
-    <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+    <div className="space-y-5">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
         💡 Bobot peran dipakai untuk menghitung <b>Man-Days</b>:{' '}
         <code className="bg-white px-1 rounded text-xs">Man-Days = Σ (Hari Penugasan × Bobot Peran)</code>.
         <br />
@@ -494,22 +673,29 @@ function BobotTab({ tahun }: { tahun: number }) {
 // ════════════════════════════════════════════════════════════
 const TIPE_BUILT_IN = ['Kategori', 'Sifat Program', 'Kategori Anggaran'];
 
+const DEFAULT_COLOR = {
+  bg: 'bg-slate-50',
+  text: 'text-slate-700',
+  border: 'border-slate-200',
+  badge: 'bg-slate-100 text-slate-700',
+};
+
 function KelompokTab() {
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'kepala_spi' || role === 'admin_spi';
   const qc = useQueryClient();
-  const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<Partial<KelompokPenugasan> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KelompokPenugasan | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['kelompok-penugasan', filter],
-    queryFn: () => settingsApi.getKelompokPenugasan(filter || undefined).then((r) => r.data.data ?? []),
+    queryKey: ['kelompok-penugasan'],
+    queryFn: () => settingsApi.getKelompokPenugasan().then((r) => r.data.data ?? []),
   });
 
-  // Daftar tipe yang ada di data + built-in (untuk dropdown filter & form)
+  // Daftar tipe yang ada di data + built-in
   const tipeOptions = useMemo(() => {
     const set = new Set<string>([...TIPE_BUILT_IN, ...((data ?? []).map((d) => d.tipe))]);
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [data]);
 
   const createMut = useMutation({
@@ -524,11 +710,28 @@ function KelompokTab() {
   });
   const deleteMut = useMutation({
     mutationFn: settingsApi.deleteKelompokPenugasan,
-    onSuccess: () => { toast.success('Dihapus'); qc.invalidateQueries({ queryKey: ['kelompok-penugasan'] }); },
+    onSuccess: () => { toast.success('Nilai dihapus'); qc.invalidateQueries({ queryKey: ['kelompok-penugasan'] }); setDeleteTarget(null); },
+    onError: (e: { response?: { data?: { message?: string } } }) => toast.error(e?.response?.data?.message ?? 'Gagal menghapus'),
   });
 
+  // Group items by tipe & sort by urutan
+  const grouped = useMemo(() => {
+    const all = data ?? [];
+    return tipeOptions.map((tipe) => {
+      const items = all
+        .filter((item) => item.tipe === tipe)
+        .sort((a, b) => (a.urutan ?? 0) - (b.urutan ?? 0));
+      return {
+        tipe,
+        items,
+      };
+    });
+  }, [data, tipeOptions]);
+
+  const totalNilai = (data ?? []).length;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
         💡 Master ini menyimpan nilai-nilai untuk pengelompokan program kerja
         (mis. <b>Kategori</b>: Assurance/Non Assurance, <b>Sifat Program</b>: Mandatory/Strategis,
@@ -536,64 +739,104 @@ function KelompokTab() {
         klasifikasi lain.
       </div>
 
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-slate-500">Filter Tipe</label>
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white">
-            <option value="">Semua</option>
-            {tipeOptions.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
+          <span className="text-sm text-slate-500">
+            Total <b className="text-slate-800">{totalNilai}</b> nilai pengelompokan
+          </span>
+          {isLoading && <span className="text-xs text-slate-400">Memuat...</span>}
         </div>
         {canEdit && (
           <button
-            onClick={() => setEditing({ tipe: filter || 'Kategori', nilai: '', urutan: 0 })}
-            className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+            onClick={() => setEditing({ tipe: 'Kategori', nilai: '', urutan: 0 })}
+            className="btn-primary"
           >
-            + Tambah Nilai
+            <Plus className="w-4 h-4" /> Tambah Nilai
           </button>
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">Tipe</th>
-              <th className="px-4 py-3 text-left">Nilai</th>
-              <th className="px-4 py-3 text-left">Urutan</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              {canEdit && <th className="px-4 py-3 text-right">Aksi</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {isLoading && <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Memuat...</td></tr>}
-            {!isLoading && (data ?? []).length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Belum ada nilai.</td></tr>
-            )}
-            {(data ?? []).map((t) => (
-              <tr key={t.id}>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium">{t.tipe}</span>
-                </td>
-                <td className="px-4 py-3 font-medium">{t.nilai}</td>
-                <td className="px-4 py-3 text-slate-500">{t.urutan}</td>
-                <td className="px-4 py-3">
-                  {t.is_active
-                    ? <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">Aktif</span>
-                    : <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs">Non-aktif</span>}
-                </td>
+      {/* Grouped cards per tipe */}
+      {isLoading ? (
+        <div className="card p-8 text-center text-slate-400">Memuat...</div>
+      ) : tipeOptions.length === 0 ? (
+        <div className="card p-8 text-center text-slate-400">
+          Belum ada nilai pengelompokan.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {grouped.map(({ tipe, items }) => (
+            <div key={tipe} className="card overflow-hidden border border-slate-200">
+              {/* Tipe header */}
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-bold text-slate-700">{tipe}</span>
+                  <span className="badge text-[11px] bg-slate-100 text-slate-700">{items.length} nilai</span>
+                </div>
                 {canEdit && (
-                  <td className="px-4 py-3 text-right space-x-2">
-                    <button onClick={() => setEditing(t)} className="text-primary-600 hover:underline text-xs font-medium">Edit</button>
-                    <button onClick={() => { if (confirm(`Hapus ${t.nilai}?`)) deleteMut.mutate(t.id); }} className="text-red-600 hover:underline text-xs font-medium">Hapus</button>
-                  </td>
+                  <button
+                    onClick={() => setEditing({ tipe, nilai: '', urutan: 0 })}
+                    className="text-xs font-semibold text-slate-700 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah di sini
+                  </button>
                 )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </div>
 
+              {/* Items */}
+              {items.length === 0 ? (
+                <div className="px-4 py-6 text-center text-slate-400 text-sm">
+                  Belum ada nilai untuk tipe ini.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50/60 transition-colors justify-between"
+                    >
+                      {/* Nilai & Info */}
+                      <div className="flex-1 min-w-0 flex items-center gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {item.nilai}
+                          </p>
+                          {item.urutan > 0 && (
+                            <p className="text-xs text-slate-400">
+                              Urutan: {item.urutan} · Status: {item.is_active ? 'Aktif' : 'Non-aktif'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Aksi */}
+                      {canEdit && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => setEditing(item)}
+                            className="px-2.5 py-1 text-xs font-semibold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(item)}
+                            className="px-2.5 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Form Modal */}
       {editing && (
         <FormModal
           title={editing.id ? 'Edit Nilai' : 'Tambah Nilai'}
@@ -629,6 +872,15 @@ function KelompokTab() {
           )}
         </FormModal>
       )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={`Nilai "${deleteTarget.nilai}" (${deleteTarget.tipe})`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={deleteMut.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -636,6 +888,42 @@ function KelompokTab() {
 // ════════════════════════════════════════════════════════════
 //  Shared UI helpers
 // ════════════════════════════════════════════════════════════
+function DeleteConfirmModal({ label, onConfirm, onCancel, isPending }: {
+  label: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending?: boolean;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-sm" onClick={() => !isPending && onCancel()} />
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">Hapus Data?</p>
+              <p className="text-sm text-slate-500 mt-1">{label} akan dihapus permanen dan tidak dapat dipulihkan.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onCancel} disabled={isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+            <button
+              onClick={onConfirm}
+              disabled={isPending}
+              className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              {isPending ? 'Menghapus...' : 'Ya, Hapus'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function FormModal({
   title, onClose, onSubmit, loading, children,
 }: {

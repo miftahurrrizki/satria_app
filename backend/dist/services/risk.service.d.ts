@@ -76,7 +76,8 @@ export declare class RiskService {
         };
     }>;
     /**
-     * Get top N risks by inherent score
+     * Get Top 15 risks according to risk appetite/tolerance:
+     * only Ekstrim, Tinggi, and Menengah Tinggi.
      */
     getTopRisks(tahun: number, n?: number): Promise<RiskData[]>;
     /**

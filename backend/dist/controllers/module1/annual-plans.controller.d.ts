@@ -4,6 +4,10 @@ export declare function getAnnualPlanById(req: Request, res: Response): Promise<
 export declare function createAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function updateAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function deleteAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+export declare function getDeletedPlans(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+export declare function restoreAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+export declare function purgeAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+export declare function purgeAllDeletedPlans(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function finalizeAnnualPlan(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function markPlanCompleted(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function markPlanOnProgress(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;

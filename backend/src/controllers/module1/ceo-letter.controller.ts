@@ -43,6 +43,41 @@ function safeParseJson<T>(raw: unknown, fallback: T): T {
   try { return JSON.parse(raw) as T; } catch { return fallback; }
 }
 
+// ── GET /ceo-letter/areas?tahun= ─────────────────────────────
+export async function getCeoLetterAreas(req: Request, res: Response) {
+  try {
+    const tahun = req.query.tahun ? Number(req.query.tahun) : currentYear();
+    const result = await query(
+      `SELECT
+         ca.id, ca.ceo_letter_id, ca.parameter, ca.deskripsi,
+         ca.prioritas, ca.urutan,
+         COALESCE(ca.target_tipe, 'Direksi') AS target_tipe,
+         COALESCE(ca.target_unit, 'Utama')   AS target_unit,
+         cl.judul    AS judul_surat,
+         cl.nomor_surat,
+         cl.tahun,
+         (SELECT COUNT(*)::INT FROM pkpt.annual_plan_ceo_areas apca
+            JOIN pkpt.annual_audit_plans aap ON aap.id = apca.annual_plan_id
+           WHERE apca.ceo_area_id = ca.id AND aap.deleted_at IS NULL) AS programs_count,
+         (SELECT COALESCE(JSON_AGG(aap2.judul_program ORDER BY aap2.created_at), '[]')
+            FROM pkpt.annual_plan_ceo_areas apca2
+            JOIN pkpt.annual_audit_plans aap2 ON aap2.id = apca2.annual_plan_id
+           WHERE apca2.ceo_area_id = ca.id AND aap2.deleted_at IS NULL) AS programs
+       FROM pkpt.ceo_letter_area ca
+       JOIN pkpt.ceo_letter cl ON cl.id = ca.ceo_letter_id
+      WHERE cl.tahun = $1
+        AND cl.deleted_at IS NULL
+        AND ca.deleted_at IS NULL
+      ORDER BY ca.target_tipe ASC, ca.urutan ASC, ca.created_at ASC`,
+      [tahun],
+    );
+    return res.json({ success: true, data: result.rows, meta: { tahun } });
+  } catch (err) {
+    logger.error(`[CEO_LETTER] getAreas failed: ${(err as Error).message}`, { error: err });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+}
+
 // ── GET ──────────────────────────────────────────────────────
 export async function getCeoLetter(req: Request, res: Response) {
   try {
@@ -67,13 +102,20 @@ export async function getCeoLetter(req: Request, res: Response) {
 
     const ids = head.rows.map((r) => r.id);
     const areas = await query<{ ceo_letter_id: string } & Record<string, unknown>>(
-      `SELECT id, ceo_letter_id, parameter, deskripsi, prioritas,
-              COALESCE(target_tipe, 'Direksi') AS target_tipe,
-              COALESCE(target_unit, 'Utama') AS target_unit,
-              urutan
-         FROM pkpt.ceo_letter_area
-        WHERE ceo_letter_id = ANY($1::uuid[]) AND deleted_at IS NULL
-        ORDER BY urutan ASC, created_at ASC`,
+      `SELECT ca.id, ca.ceo_letter_id, ca.parameter, ca.deskripsi, ca.prioritas,
+              COALESCE(ca.target_tipe, 'Direksi') AS target_tipe,
+              COALESCE(ca.target_unit, 'Utama') AS target_unit,
+              ca.urutan,
+              (SELECT COUNT(*)::INT FROM pkpt.annual_plan_ceo_areas apca
+                 JOIN pkpt.annual_audit_plans aap ON aap.id = apca.annual_plan_id
+                WHERE apca.ceo_area_id = ca.id AND aap.deleted_at IS NULL) AS programs_count,
+              (SELECT COALESCE(JSON_AGG(aap2.judul_program ORDER BY aap2.created_at), '[]')
+                 FROM pkpt.annual_plan_ceo_areas apca2
+                 JOIN pkpt.annual_audit_plans aap2 ON aap2.id = apca2.annual_plan_id
+                WHERE apca2.ceo_area_id = ca.id AND aap2.deleted_at IS NULL) AS programs
+         FROM pkpt.ceo_letter_area ca
+        WHERE ca.ceo_letter_id = ANY($1::uuid[]) AND ca.deleted_at IS NULL
+        ORDER BY ca.urutan ASC, ca.created_at ASC`,
       [ids],
     );
     const areasByLetter = new Map<string, typeof areas.rows>();

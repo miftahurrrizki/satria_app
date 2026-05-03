@@ -56,6 +56,7 @@ export interface RiskData {
   sasaran_strategis_id?: string;
   sasaran_strategis_kode?: string;
   sasaran_strategis_nama?: string;
+  sasaran_strategis_parent_nama?: string;
 
   // Identitas risiko
   nama_risiko: string;
@@ -100,6 +101,10 @@ export interface RiskData {
   imported_by_nama?: string;
   created_at: string;
   updated_at?: string;
+
+  // Program monitoring
+  programs_count?: number;
+  programs?: Array<{ id: string; judul_program: string; status_pkpt: string }> | string[];
 }
 
 // ── Risk Level Reference ─────────────────────────────────────
@@ -166,9 +171,23 @@ export interface ProgramTeamMember {
   hari_alokasi?: number | null;     // hari kerja aktual untuk anggota ini (null = pakai estimasi_hari)
 }
 
+export interface CeoAreaRef {
+  id: string;
+  parameter: string;
+  deskripsi?: string;
+  prioritas: string;
+  target_tipe: 'Direksi' | 'Komisaris';
+  target_unit: string;
+  judul_surat: string;
+  nomor_surat?: string;
+  ceo_letter_id?: string;
+  tahun?: number;
+}
+
 export interface AnnualAuditPlanDetail extends AnnualAuditPlan {
   team: ProgramTeamMember[];
   risks: RiskData[];
+  ceo_areas?: CeoAreaRef[];
 }
 
 // ── Auditor (untuk penugasan tim) ────────────────────────────
@@ -370,3 +389,94 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   auditee:            'Auditee',
   it_admin:           'IT Admin',
 };
+
+// ── Module 2: Perencanaan Pengawasan Individual ───────────────
+
+export type ProgramStatus = 'draft' | 'aktif' | 'selesai';
+export type FaseType = 'perencanaan' | 'pelaporan';
+export type ItemStatus = 'tidak_dimulai' | 'dalam_proses' | 'selesai';
+
+export interface PicUser {
+  user_id: string;
+  nama_lengkap: string;
+  nik?: string;
+}
+
+export interface AuditProgram {
+  id: string;
+  annual_plan_id: string;
+  annual_plan_judul: string;
+  tahun: number;
+  auditee: string | null;
+  status: ProgramStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Aggregates (from list endpoint)
+  total_est_hari?: number;
+  total_man_days?: number;
+  unique_pics?: number;
+}
+
+export interface FaseItem {
+  id: string;
+  program_id: string;
+  fase: FaseType;
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  pics: PicUser[];
+}
+
+export interface Rincian {
+  id: string;
+  prosedur_id: string;
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  pics: PicUser[];
+}
+
+export interface Prosedur {
+  id: string;
+  risiko_id: string;
+  label: string;
+  title: string;
+  order_index: number;
+  tanggal_jatuh_tempo: string | null;
+  rincian: Rincian[];
+}
+
+export interface Risiko {
+  id: string;
+  tujuan_id: string;
+  label: string;
+  title: string;
+  risk_ref_id: string | null;
+  risk_ref?: { id: string; nama_risiko: string } | null;
+  order_index: number;
+  tanggal_jatuh_tempo: string | null;
+  prosedur: Prosedur[];
+}
+
+export interface Tujuan {
+  id: string;
+  program_id: string;
+  label: string;
+  title: string;
+  order_index: number;
+  risiko: Risiko[];
+}
+
+export interface ProgramDetail {
+  program: AuditProgram;
+  perencanaan: FaseItem[];
+  pelaksanaan: Tujuan[];
+  pelaporan: FaseItem[];
+}

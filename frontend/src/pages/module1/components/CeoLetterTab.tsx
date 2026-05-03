@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, FileDown, FileText, Plus, Save, Trash2, Upload, X,
+  AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, FileDown, FileText, Plus, Save, Trash2, Upload, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -13,6 +14,74 @@ import {
   ceoLetterApi,
 } from '../../../services/api';
 import { useAuthStore } from '../../../store/auth.store';
+
+function ProgramsBadge({ count, names }: { count: number; names?: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (
+        popRef.current && !popRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (count === 0) return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+      <ClipboardList className="w-3 h-3" /> Belum ada program kerja
+    </span>
+  );
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) setRect(btnRef.current.getBoundingClientRect());
+    setOpen((v) => !v);
+  };
+
+  const popStyle: React.CSSProperties = rect
+    ? { position: 'fixed', top: rect.bottom + 6, left: rect.left, zIndex: 9999 }
+    : { display: 'none' };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleClick}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+      >
+        <ClipboardList className="w-3 h-3" />
+        {count} program
+      </button>
+      {open && rect && createPortal(
+        <div ref={popRef} style={popStyle} className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] max-w-[300px]">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">
+            {count} Program Kerja Terkait
+          </p>
+          {names && names.length > 0 ? (
+            <div className="space-y-1.5">
+              {names.map((name, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                  <p className="text-xs text-slate-700 leading-relaxed">{name}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">{count} program kerja terkait area ini.</p>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 const PRIORITAS_OPTS: AreaPrioritas[] = ['Tinggi', 'Sedang', 'Rendah'];
 const TARGET_TIPE_OPTS: CeoLetterTargetTipe[] = ['Direksi', 'Komisaris'];
@@ -29,6 +98,8 @@ function normalizeArea(area: Partial<CeoLetterArea>, urutan = 0): CeoLetterArea 
     target_tipe: targetTipe,
     target_unit: targetTipe === 'Komisaris' ? 'Komisaris' : (area.target_unit ?? 'Utama'),
     urutan: area.urutan ?? urutan,
+    programs_count: area.programs_count ?? 0,
+    programs: area.programs ?? [],
   };
 }
 
@@ -67,6 +138,8 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
   const [areas, setAreas] = useState<CeoLetterArea[]>([]);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [showDeleteFileConfirm, setShowDeleteFileConfirm]     = useState(false);
+  const [showDeleteLetterConfirm, setShowDeleteLetterConfirm] = useState(false);
 
   const selectedLetter = letters.find((l) => l.id === selectedId) ?? null;
   const isNew = selectedId === 'new';
@@ -156,8 +229,9 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
   const deleteFileMut = useMutation({
     mutationFn: () => ceoLetterApi.deleteFile(selectedLetter!.id),
     onSuccess: () => {
-      toast.success('PDF dihapus');
+      toast.success('PDF lampiran dihapus');
       qc.invalidateQueries({ queryKey: ['ceo-letter'] });
+      setShowDeleteFileConfirm(false);
     },
   });
 
@@ -167,6 +241,7 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
       toast.success('CEO Letter dihapus');
       backToList();
       qc.invalidateQueries({ queryKey: ['ceo-letter'] });
+      setShowDeleteLetterConfirm(false);
     },
   });
 
@@ -202,6 +277,7 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
 
   if (showDetail) {
     return (
+      <>
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -267,9 +343,9 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
                       <input type="file" accept="application/pdf" className="hidden" onChange={(e) => handleFilePick(e.target.files?.[0] ?? null)} />
                     </label>
                     <button
-                      onClick={() => { if (confirm('Hapus PDF lampiran?')) deleteFileMut.mutate(); }}
+                      onClick={() => setShowDeleteFileConfirm(true)}
                       disabled={deleteFileMut.isPending}
-                      className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 flex items-center gap-2"
+                      className="btn-danger"
                     >
                       <Trash2 className="w-4 h-4" /> Hapus
                     </button>
@@ -320,18 +396,21 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
                     <th className="px-4 py-3 text-left">Parameter</th>
                     <th className="px-4 py-3 text-left">Deskripsi</th>
                     <th className="px-4 py-3 text-left w-36">Prioritas</th>
+                    <th className="px-4 py-3 text-center w-36">Program Kerja</th>
                     {canEdit && <th className="px-4 py-3 text-right w-14">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {areas.length === 0 && (
                     <tr>
-                      <td colSpan={canEdit ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={canEdit ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
                         Belum ada area pengawasan.
                       </td>
                     </tr>
                   )}
-                  {areas.map((area, idx) => (
+                  {areas.map((area, idx) => {
+                    const cnt = area.programs_count ?? 0;
+                    return (
                     <tr key={idx} className="align-top hover:bg-slate-50/70">
                       <td className="px-4 py-3 font-mono text-xs text-slate-400">{idx + 1}</td>
                       <td className="px-4 py-3">
@@ -362,6 +441,11 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
                           {PRIORITAS_OPTS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {area.id
+                          ? <ProgramsBadge count={cnt} names={area.programs} />
+                          : <span className="text-xs text-slate-300">—</span>}
+                      </td>
                       {canEdit && (
                         <td className="px-4 py-3 text-right">
                           <button onClick={() => removeArea(idx)} className="p-2 rounded-lg text-red-500 hover:bg-red-50" title="Hapus area">
@@ -370,7 +454,8 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -380,9 +465,9 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedLetter && (
                 <button
-                  onClick={() => { if (confirm(`Hapus CEO Letter "${selectedLetter.judul}"?`)) removeMut.mutate(); }}
+                  onClick={() => setShowDeleteLetterConfirm(true)}
                   disabled={removeMut.isPending}
-                  className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 flex items-center gap-2"
+                  className="btn-danger"
                 >
                   <Trash2 className="w-4 h-4" /> Hapus
                 </button>
@@ -395,6 +480,61 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
           )}
         </div>
       </div>
+
+      {/* Confirm: hapus PDF */}
+      {showDeleteFileConfirm && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm" onClick={() => !deleteFileMut.isPending && setShowDeleteFileConfirm(false)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Hapus PDF Lampiran?</p>
+                  <p className="text-sm text-slate-500 mt-1">File PDF yang terlampir pada CEO Letter ini akan dihapus permanen. Data teks CEO Letter tetap tersimpan.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteFileConfirm(false)} disabled={deleteFileMut.isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button onClick={() => deleteFileMut.mutate()} disabled={deleteFileMut.isPending} className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
+                  {deleteFileMut.isPending ? 'Menghapus...' : 'Ya, Hapus PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Confirm: hapus CEO Letter */}
+      {showDeleteLetterConfirm && selectedLetter && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm" onClick={() => !removeMut.isPending && setShowDeleteLetterConfirm(false)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Hapus CEO Letter?</p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Surat arahan <strong className="text-slate-700">"{selectedLetter.judul}"</strong> beserta seluruh area dan lampiran PDF-nya akan dihapus permanen.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteLetterConfirm(false)} disabled={removeMut.isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button onClick={() => removeMut.mutate()} disabled={removeMut.isPending} className="flex-1 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
+                  {removeMut.isPending ? 'Menghapus...' : 'Ya, Hapus CEO Letter'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      </>
     );
   }
 

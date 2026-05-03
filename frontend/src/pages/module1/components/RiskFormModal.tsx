@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   X, Loader2, AlertCircle, ChevronDown, CheckCircle2, 
   Fingerprint, Building2, Target, AlertTriangle, Activity, ShieldCheck 
@@ -25,7 +25,7 @@ const SCORE_OPTIONS: [number, string][] = [
 ];
 
 const LEVEL_LABEL: Record<string, string> = {
-  E: 'Extreme', T: 'Tinggi', MT: 'Medium Tinggi', M: 'Medium', RM: 'Rendah Medium', R: 'Rendah',
+  E: 'Ekstrim', T: 'Tinggi', MT: 'Menengah Tinggi', M: 'Menengah', RM: 'Rendah Menengah', R: 'Rendah',
 };
 
 const PARAM_KEMUNGKINAN = ['Frekuensi', 'Dampak', 'Probabilitas', 'Unknown'];
@@ -63,6 +63,7 @@ interface FormState {
 
 export default function RiskFormModal({ tahun, editData, onClose, onSuccess }: Props) {
   const isEdit = !!editData;
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState<FormState>({
     id_risiko:             '',
@@ -223,6 +224,8 @@ export default function RiskFormModal({ tahun, editData, onClose, onSuccess }: P
       return isEdit ? risksApi.update(editData!.id, payload) : risksApi.create(payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['risks'] });
+      queryClient.invalidateQueries({ queryKey: ['annual-plans'] });
       toast.success(isEdit ? 'Risiko berhasil diperbarui' : 'Risiko berhasil ditambahkan');
       onSuccess();
     },
@@ -338,9 +341,29 @@ export default function RiskFormModal({ tahun, editData, onClose, onSuccess }: P
                     className={inputClass}
                   >
                     <option value="">— Pilih Sasaran Strategis —</option>
-                    {sasaranStrategisList.map((s) => (
-                      <option key={s.id} value={s.id}>{s.kode ? `${s.kode} — ${s.nama}` : s.nama}</option>
-                    ))}
+                    {(() => {
+                      const isChild = (kode?: string | null) => !!kode && kode.includes('.');
+                      const byKode = (a: { kode?: string | null }, b: { kode?: string | null }) =>
+                        (a.kode ?? '').localeCompare(b.kode ?? '', 'id', { numeric: true });
+                      const parents  = sasaranStrategisList.filter((s) => !isChild(s.kode)).sort(byKode);
+                      const children = sasaranStrategisList.filter((s) =>  isChild(s.kode)).sort(byKode);
+                      const pfx = (kode: string) => { const m = kode.match(/^([A-Za-z]+)(\d+)$/); return m ? `${m[1]}.${m[2]}.` : `${kode}.`; };
+                      const els: React.ReactNode[] = [];
+                      for (const p of parents) {
+                        els.push(
+                          <option key={`hdr-${p.id}`} value={p.id} disabled>
+                            {p.kode ? `${p.kode} — ${p.nama}` : p.nama}
+                          </option>
+                        );
+                        for (const c of children.filter((ch) => ch.kode?.startsWith(pfx(p.kode ?? '')))) {
+                          els.push(<option key={c.id} value={c.id}>{c.kode} — {c.nama}</option>);
+                        }
+                      }
+                      for (const c of children.filter((ch) => !parents.some((p) => ch.kode?.startsWith(pfx(p.kode ?? ''))))) {
+                        els.push(<option key={c.id} value={c.id}>{c.kode} — {c.nama}</option>);
+                      }
+                      return els;
+                    })()}
                   </select>
                   <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>

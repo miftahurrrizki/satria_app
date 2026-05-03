@@ -339,7 +339,7 @@ function SummaryRow({
 // ── Main Tab ─────────────────────────────────────────────────
 export default function EvaluationTab({ tahun }: { tahun: number }) {
   const { user } = useAuthStore();
-  const canEvaluate = user?.role === 'pengendali_teknis' || user?.role === 'kepala_spi';
+  const canEvaluate = ['pengendali_teknis', 'kepala_spi', 'admin_spi'].includes(user?.role ?? '');
   const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   const pendingQ = useQuery({

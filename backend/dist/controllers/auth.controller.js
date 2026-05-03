@@ -5,12 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = login;
 exports.me = me;
+exports.logout = logout;
 exports.changePassword = changePassword;
 exports.resetToDefault = resetToDefault;
 const database_1 = require("../config/database");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const password_1 = require("../utils/password");
 const logger_1 = __importDefault(require("../utils/logger"));
+const validation_1 = require("../utils/validation");
 // ── POST /api/auth/login ──────────────────────────────────────
 async function login(req, res) {
     try {
@@ -66,14 +68,15 @@ async function login(req, res) {
             divisi_id: user.divisi_id,
             departemen_id: user.departemen_id,
         });
-        // Catat activity log
+        // Set session sebagai httpOnly cookie (tidak bisa diakses oleh JS — aman dari XSS)
+        (0, auth_middleware_1.setSessionCookie)(res, token);
+        // Catat activity log (jangan log NIK di message — hanya user_id)
         await (0, database_1.query)(`INSERT INTO auth.activity_log (user_id, action, modul, ip_address)
        VALUES ($1, 'LOGIN', 'auth', $2)`, [user.id, req.ip]).catch(() => null);
-        logger_1.default.info(`[AUTH] User login successful: ${user.nik} (${user.id})`, { user_id: user.id, nik: user.nik });
+        logger_1.default.info('[AUTH] User login successful', { user_id: user.id });
         return res.json({
             success: true,
             data: {
-                token,
                 user: {
                     id: user.id,
                     nik: user.nik,
@@ -90,7 +93,8 @@ async function login(req, res) {
         });
     }
     catch (err) {
-        logger_1.default.error(`[AUTH] Login failed: ${err.message}`, { error: err, login_id: req.body.nik || req.body.username });
+        // Jangan log input user di production (privasi)
+        logger_1.default.error(`[AUTH] Login error: ${err.message}`, { error: err });
         return res.status(500).json({ success: false, message: 'Terjadi kesalahan server.' });
     }
 }
@@ -126,6 +130,11 @@ async function me(req, res) {
         return res.status(500).json({ success: false, message: 'Terjadi kesalahan server.' });
     }
 }
+// ── POST /api/auth/logout ─────────────────────────────────────
+function logout(_req, res) {
+    (0, auth_middleware_1.clearSessionCookie)(res);
+    return res.json({ success: true, message: 'Berhasil keluar.' });
+}
 // ── PUT /api/auth/change-password ─────────────────────────────
 async function changePassword(req, res) {
     try {
@@ -133,8 +142,10 @@ async function changePassword(req, res) {
         if (!old_password || !new_password) {
             return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
         }
-        if (new_password.length < 6) {
-            return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
+        // Validasi kekuatan password baru
+        const strength = (0, validation_1.validatePasswordStrength)(new_password);
+        if (!strength.valid) {
+            return res.status(400).json({ success: false, message: strength.message });
         }
         const result = await (0, database_1.query)('SELECT password_hash FROM auth.users WHERE id = $1 AND deleted_at IS NULL', [req.user.id]);
         const user = result.rows[0];
@@ -178,13 +189,14 @@ async function resetToDefault(req, res) {
         await (0, database_1.query)('UPDATE auth.users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, user_id]);
         await (0, database_1.query)(`INSERT INTO auth.activity_log (user_id, action, modul, entity_id)
        VALUES ($1, 'RESET_PASSWORD', 'auth', $2)`, [req.user.id, user_id]).catch(() => null);
-        logger_1.default.info(`[AUTH] Password reset for user: ${target.nik} (${user_id}) by ${req.user.id}`, { user_id, admin_id: req.user.id, target_nik: target.nik });
+        logger_1.default.info('[AUTH] Password reset executed', { target_user_id: user_id, admin_id: req.user.id });
+        // TIDAK mengembalikan default_password di response — admin perlu memberi tahu user secara langsung.
+        // Pattern password default sudah publik (hint cukup), jadi exposure tidak diperlukan.
         return res.json({
             success: true,
             message: 'Password berhasil direset ke default.',
             data: {
-                default_password: defaultPw,
-                hint: `Pola: 3 digit terakhir NIP + '_' + nama belakang lowercase`,
+                hint: `Pola password default: 3 digit terakhir NIK + '_' + nama belakang (huruf kecil). Contoh: NIK ...199, nama belakang "Hakim" → 199_hakim`,
             },
         });
     }

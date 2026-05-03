@@ -330,7 +330,7 @@ export async function updateModuleAccess(req: Request, res: Response) {
       });
     }
 
-    const validModules = ['pkpt', 'pelaksanaan', 'pelaporan', 'sintesis', 'pemantauan', 'ca-cm'];
+    const validModules = ['pkpt', 'individual', 'pelaksanaan', 'pelaporan', 'sintesis', 'pemantauan', 'ca-cm'];
     const invalidModules = module_access.filter((m: unknown) => !validModules.includes(m as string));
     if (invalidModules.length > 0) {
       return res.status(400).json({

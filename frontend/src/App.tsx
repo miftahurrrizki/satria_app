@@ -17,20 +17,23 @@ import ActivityLogPage from './pages/admin/ActivityLogPage';
 // ── Modul 1: Perencanaan Pengawasan Tahunan ───────────────────
 import PKPTPage from './pages/module1/PKPTPage';
 
-// ── Modul 2: Pelaksanaan Audit & Kertas Kerja ─────────────────
-import PelaksanaanPage from './pages/module2/PelaksanaanPage';
+// ── Modul 2: Perencanaan Pengawasan Individual ────────────────
+import PengawasanIndividualPage from './pages/module2/PengawasanIndividualPage';
 
-// ── Modul 3: Pelaporan & Komunikasi Hasil ────────────────────
-import PelaporanPage from './pages/module3/PelaporanPage';
+// ── Modul 3: Pelaksanaan Audit & Kertas Kerja ─────────────────
+import PelaksanaanPage from './pages/module3/PelaksanaanPage';
 
-// ── Modul 4: Sintesis Hasil Pengawasan ───────────────────────
-import SintesisPage from './pages/module4/SintesisPage';
+// ── Modul 4: Pelaporan & Komunikasi Hasil ────────────────────
+import PelaporanPage from './pages/module4/PelaporanPage';
 
-// ── Modul 5: Pemantauan Tindak Lanjut Temuan ─────────────────
-import PemantauanPage from './pages/module5/PemantauanPage';
+// ── Modul 5: Sintesis Hasil Pengawasan ───────────────────────
+import SintesisPage from './pages/module5/SintesisPage';
 
-// ── Modul 6: Dashboard CA-CM ──────────────────────────────────
-import CACMPage from './pages/module6/CACMPage';
+// ── Modul 6: Pemantauan Tindak Lanjut Temuan ─────────────────
+import PemantauanPage from './pages/module6/PemantauanPage';
+
+// ── Modul 7: Dashboard CA-CM ──────────────────────────────────
+import CACMPage from './pages/module7/CACMPage';
 
 // ── Pengaturan Sistem (Master Data Modul 1) ──────────────────
 import PengaturanSistemPage from './pages/settings/PengaturanSistemPage';
@@ -39,14 +42,14 @@ import PengaturanSistemPage from './pages/settings/PengaturanSistemPage';
 
 /** Redirect ke /login jika belum autentikasi */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  return token ? <>{children}</> : <Navigate to="/login" replace />;
+  const user = useAuthStore((s) => s.user);
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
 /** Redirect ke / jika sudah login */
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  return !token ? <>{children}</> : <Navigate to="/" replace />;
+  const user = useAuthStore((s) => s.user);
+  return !user ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 /**
@@ -110,9 +113,10 @@ export default function App() {
             />
           </Route>
 
-          {/* ── Modul 1: Perencanaan Pengawasan Tahunan ──────── */}
+          {/* ── Perencanaan (Modul 1 & 2 — nested di /perencanaan) ── */}
           <Route path="perencanaan">
             <Route index element={<Navigate to="pkpt" replace />} />
+            {/* Modul 1: PKPT */}
             <Route
               path="pkpt"
               element={
@@ -121,11 +125,20 @@ export default function App() {
                 </RoleRoute>
               }
             />
-            {/* Redirect lama → PKPT tab CEO Letter */}
+            {/* Modul 2: Perencanaan Pengawasan Individual */}
+            <Route
+              path="individual"
+              element={
+                <RoleRoute allowed={['kepala_spi', 'pengendali_teknis', 'anggota_tim', 'admin_spi']}>
+                  <PengawasanIndividualPage />
+                </RoleRoute>
+              }
+            />
+            {/* Redirect alias */}
             <Route path="ceo-letter" element={<Navigate to="/perencanaan/pkpt?tab=ceo-letter" replace />} />
           </Route>
 
-          {/* ── Modul 2: Pelaksanaan Audit & Kertas Kerja ────── */}
+          {/* ── Modul 3: Pelaksanaan Audit & Kertas Kerja ────── */}
           <Route
             path="pelaksanaan"
             element={
@@ -135,7 +148,7 @@ export default function App() {
             }
           />
 
-          {/* ── Modul 3: Pelaporan & Komunikasi Hasil ─────────── */}
+          {/* ── Modul 4: Pelaporan & Komunikasi Hasil ─────────── */}
           <Route
             path="pelaporan"
             element={
@@ -145,7 +158,7 @@ export default function App() {
             }
           />
 
-          {/* ── Modul 4: Sintesis Hasil Pengawasan ────────────── */}
+          {/* ── Modul 5: Sintesis Hasil Pengawasan ────────────── */}
           <Route
             path="sintesis"
             element={
@@ -155,7 +168,7 @@ export default function App() {
             }
           />
 
-          {/* ── Modul 5: Pemantauan Tindak Lanjut Temuan ─────── */}
+          {/* ── Modul 6: Pemantauan Tindak Lanjut Temuan ─────── */}
           <Route
             path="pemantauan"
             element={
@@ -165,7 +178,7 @@ export default function App() {
             }
           />
 
-          {/* ── Modul 6: Dashboard CA-CM ──────────────────────── */}
+          {/* ── Modul 7: Dashboard CA-CM ──────────────────────── */}
           <Route
             path="ca-cm"
             element={
@@ -185,11 +198,10 @@ export default function App() {
             }
           />
 
-          {/* Legacy redirects (subpaths yang belum tersedia) */}
-          <Route path="perencanaan/individual" element={<Navigate to="/perencanaan/pkpt" replace />} />
-          <Route path="audit/*"        element={<Navigate to="/pelaksanaan" replace />} />
-          <Route path="tindak-lanjut/*" element={<Navigate to="/pemantauan" replace />} />
-          <Route path="kinerja/*"      element={<Navigate to="/" replace />} />
+          {/* Legacy redirects */}
+          <Route path="audit/*"         element={<Navigate to="/pelaksanaan" replace />} />
+          <Route path="tindak-lanjut/*" element={<Navigate to="/pemantauan"  replace />} />
+          <Route path="kinerja/*"       element={<Navigate to="/"            replace />} />
 
         </Route>
 

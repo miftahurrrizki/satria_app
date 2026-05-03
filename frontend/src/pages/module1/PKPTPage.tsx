@@ -25,7 +25,8 @@ export default function PKPTPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const searchParamsString = searchParams.toString();
-  const storedTab = localStorage.getItem('pkpt_active_tab');
+  // sessionStorage — dibersihkan saat tab/browser ditutup; tidak persist seperti localStorage
+  const storedTab = sessionStorage.getItem('pkpt_active_tab');
   const isValidTab = (t: string | null): t is TabId =>
     t === 'ceo-letter' || t === 'risk' || t === 'mandays' || t === 'program' || t === 'workload' || t === 'evaluation';
 
@@ -36,7 +37,7 @@ export default function PKPTPage() {
   const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i);
 
   useEffect(() => {
-    localStorage.setItem('pkpt_active_tab', activeTab);
+    sessionStorage.setItem('pkpt_active_tab', activeTab);
   }, [activeTab]);
 
   useEffect(() => {

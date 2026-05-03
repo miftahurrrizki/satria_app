@@ -11,12 +11,11 @@ import { ROLE_LABELS } from '../../../types';
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
 function getCellColor(ratio: number) {
-  if (ratio <= 0)    return 'bg-slate-100 text-slate-400';
-  if (ratio <= 0.5)  return 'bg-green-100 text-green-800';
-  if (ratio <= 0.8)  return 'bg-emerald-200 text-emerald-900';
-  if (ratio <= 1.0)  return 'bg-amber-300 text-amber-900';
-  if (ratio <= 1.3)  return 'bg-red-300 text-red-900';
-  return 'bg-red-500 text-white';
+  if (ratio <= 0)   return 'bg-slate-100 text-slate-400';
+  if (ratio < 0.5)  return 'bg-green-100 text-green-800';
+  if (ratio < 0.8)  return 'bg-emerald-200 text-emerald-900';
+  if (ratio < 1.0)  return 'bg-amber-300 text-amber-900';
+  return 'bg-red-500 text-white';  // >= 100% bobot = overload
 }
 
 function getRoleBadge(role: string) {
@@ -99,7 +98,8 @@ function HeatmapRow({ auditor, viewMode, paguBobotPerBulan }: HeatmapRowProps) {
                   <span><b className="text-slate-700">{auditor.total_mandays.toFixed(1)}</b> / {auditor.kapasitas_mandays} HP</span>
                   <span className="w-1 h-1 rounded-full bg-slate-300" />
                   <span className={`font-semibold ${utilisasi > 100 ? 'text-red-600' : utilisasi > 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {utilisasi.toFixed(0)}% Digunakan
+                    {Math.min(utilisasi, 100).toFixed(0)}% Digunakan
+                    {utilisasi > 100 && <span className="text-red-500"> (+{(utilisasi - 100).toFixed(0)}%)</span>}
                   </span>
                 </>
               )}
@@ -147,9 +147,9 @@ function HeatmapRow({ auditor, viewMode, paguBobotPerBulan }: HeatmapRowProps) {
                   <span className="font-bold text-slate-900">{auditor.nik}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-slate-500">Role</span>
-                  <span className={`badge ${getRoleBadge(auditor.role)}`}>
-                    {getAuditorLabel(auditor.role, auditor.jabatan)}
+                  <span className="text-slate-500">Jabatan</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {auditor.jabatan || getAuditorLabel(auditor.role, auditor.jabatan)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
@@ -172,20 +172,27 @@ function HeatmapRow({ auditor, viewMode, paguBobotPerBulan }: HeatmapRowProps) {
                 </div>
 
                 <div className="flex items-end justify-between mb-2">
-                  <p className="text-3xl font-bold text-slate-900">{utilisasi.toFixed(1)}%</p>
-                  <span className={`text-sm font-bold ${status.text}`}>{status.label}</span>
+                  <p className="text-3xl font-bold text-slate-900">{Math.min(utilisasi, 100).toFixed(1)}%</p>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className={`text-sm font-bold ${status.text}`}>{status.label}</span>
+                    {utilisasi > 100 && (
+                      <span className="text-[10px] font-semibold text-red-500">
+                        +{(utilisasi - 100).toFixed(1)}% melebihi kapasitas
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-4">
                   <div className={`h-full transition-all ${status.bar}`} style={{ width: `${Math.min(utilisasi, 100)}%` }} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                <div className="flex items-start justify-between pt-4 border-t border-slate-100">
                   <div>
                     <p className="section-label mb-0.5">Terpakai</p>
                     <p className="text-base font-bold text-slate-900">{auditor.total_mandays.toFixed(1)} <span className="text-xs font-normal text-slate-500">HP</span></p>
                   </div>
-                  <div>
+                  <div className="text-right">
                     <p className="section-label mb-0.5">Sisa</p>
                     <p className={`text-base font-bold ${remaining < 0 ? 'text-red-600' : 'text-slate-900'}`}>
                       {remaining.toFixed(1)} <span className="text-xs font-normal text-slate-500">HP</span>

@@ -9,6 +9,7 @@
  *   DELETE /ceo-letter/:id             → soft-delete CEO letter
  */
 import { Request, Response } from 'express';
+export declare function getCeoLetterAreas(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function getCeoLetter(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function upsertCeoLetter(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 export declare function uploadCeoLetterFile(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;

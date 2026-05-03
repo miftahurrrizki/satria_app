@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X, Check, Trash2, AlertCircle, CheckCircle2, Info, Award } from 'lucide-react';
 import { useNotificationStore } from '../../store/notification.store';
@@ -59,13 +59,22 @@ export default function NotificationPanel() {
 
   async function handleMarkAll() {
     markAllRead();
-    await notificationsApi.markAllRead().catch(() => null);
-    toast.success('Semua notifikasi ditandai sudah dibaca');
+    try {
+      await notificationsApi.markAllRead();
+      toast.success('Semua notifikasi ditandai sudah dibaca');
+    } catch {
+      toast.error('Gagal menandai notifikasi. Coba lagi.');
+    }
   }
 
   async function handleDelete(id: string) {
+    // Optimistic update: hapus dari UI dulu
     removeItem(id);
-    await notificationsApi.delete(id).catch(() => null);
+    try {
+      await notificationsApi.delete(id);
+    } catch {
+      toast.error('Gagal menghapus notifikasi.');
+    }
   }
 
   async function handleOpen(n: Notification) {
@@ -99,11 +108,16 @@ export default function NotificationPanel() {
           <button
             onClick={handleMarkAll}
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-primary-600 border border-slate-200 rounded-lg px-2 sm:px-3 py-1.5 transition-colors"
-            title="Mark all as read"
+            aria-label="Tandai semua notifikasi sudah dibaca"
+            title="Tandai semua sudah dibaca"
           >
-            <Check className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Mark all as read</span>
+            <Check className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Tandai semua dibaca</span>
           </button>
-          <button onClick={closePanel} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+          <button
+            onClick={closePanel}
+            className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Tutup panel notifikasi"
+          >
             <X className="w-4 h-4 text-slate-400" />
           </button>
         </div>
@@ -115,6 +129,8 @@ export default function NotificationPanel() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
+            aria-pressed={activeTab === tab}
+            aria-label={`Filter notifikasi: ${tab}`}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               activeTab === tab
                 ? 'bg-primary-500 text-white'
@@ -124,7 +140,7 @@ export default function NotificationPanel() {
             {tab}
             {tab === 'Unread' && unreadCount > 0 && (
               <span className="ml-1.5 bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5">
-                {unreadCount}
+                {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </button>
@@ -134,9 +150,19 @@ export default function NotificationPanel() {
       {/* List */}
       <div className="overflow-y-auto max-h-[440px]">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <Bell className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm">Tidak ada notifikasi</p>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400" role="status" aria-live="polite">
+            <Bell className="w-10 h-10 mb-3 opacity-30" aria-hidden="true" />
+            <p className="text-sm font-medium">
+              {activeTab === 'All' ? 'Belum ada notifikasi' : `Tidak ada notifikasi ${activeTab}`}
+            </p>
+            {activeTab !== 'All' && (
+              <button
+                onClick={() => setActiveTab('All')}
+                className="mt-2 text-xs text-primary-500 hover:underline"
+              >
+                Lihat semua notifikasi
+              </button>
+            )}
           </div>
         ) : (
           filtered.map((n) => (
@@ -154,7 +180,11 @@ export default function NotificationPanel() {
   );
 }
 
-function NotificationItem({
+/**
+ * NotificationItem — dibungkus React.memo agar tidak re-render saat tab berubah
+ * tetapi item ini tidak terpengaruh (referential equality pada props).
+ */
+const NotificationItem = memo(function NotificationItem({
   notification: n,
   onMarkRead,
   onDelete,
@@ -166,15 +196,31 @@ function NotificationItem({
   onOpen: () => void;
 }) {
   const clickable = Boolean(n.link_url);
+
+  // Lindungi dari invalid date (defensive rendering)
+  let timeAgo = '';
+  try {
+    timeAgo = formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: localeId });
+  } catch {
+    timeAgo = '';
+  }
+
   return (
     <div
+      role={clickable ? 'button' : 'listitem'}
+      tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? onOpen : undefined}
+      onKeyDown={clickable ? (e) => e.key === 'Enter' && onOpen() : undefined}
+      aria-label={`Notifikasi: ${n.title}${!n.is_read ? ' (belum dibaca)' : ''}`}
       className={`flex gap-3 px-4 py-4 border-b border-slate-50 hover:bg-slate-50 transition-colors ${
         clickable ? 'cursor-pointer' : ''
       } ${!n.is_read ? 'bg-blue-50/30' : ''}`}
     >
       {/* Icon */}
-      <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${TYPE_BG[n.type]}`}>
+      <div
+        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${TYPE_BG[n.type]}`}
+        aria-hidden="true"
+      >
         {TYPE_ICON[n.type]}
       </div>
 
@@ -185,14 +231,14 @@ function NotificationItem({
             {n.title}
           </p>
           {!n.is_read && (
-            <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
+            <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" aria-hidden="true" />
           )}
         </div>
-        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{n.message}</p>
+        <p className="text-xs text-slate-600 mt-0.5 leading-relaxed line-clamp-2">{n.message}</p>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-[11px] text-slate-400">
-            {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: localeId })}
-          </span>
+          <time className="text-[11px] text-slate-400" dateTime={n.created_at}>
+            {timeAgo}
+          </time>
           <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
             n.type === 'Risk'       ? 'bg-red-100 text-red-600' :
             n.type === 'Program'    ? 'bg-green-100 text-green-600' :
@@ -206,19 +252,21 @@ function NotificationItem({
               <button
                 onClick={(e) => { e.stopPropagation(); onMarkRead(); }}
                 className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-primary-600 transition-colors"
+                aria-label="Tandai notifikasi sudah dibaca"
               >
-                <Check className="w-3 h-3" /> Mark as read
+                <Check className="w-3 h-3" aria-hidden="true" /> Baca
               </button>
             )}
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="text-slate-300 hover:text-red-400 transition-colors"
+              className="text-slate-300 hover:text-red-400 transition-colors p-1 rounded"
+              aria-label="Hapus notifikasi ini"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         </div>
       </div>
     </div>
   );
-}
+});

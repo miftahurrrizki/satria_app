@@ -4,19 +4,20 @@ import {
   Users, Building2, Layers2, Plus, Search, RefreshCw, Shield, Eye, EyeOff,
   ToggleLeft, ToggleRight, Trash2, KeyRound, Edit2, X, Copy, Check,
   Layers, CheckSquare, Square, Calendar, FileText, PieChart, LayoutDashboard,
-  MapPin, BadgeInfo, Mail, ChevronLeft, ChevronRight,
+  MapPin, BadgeInfo, Mail, ChevronLeft, ChevronRight, AlertTriangle,
 } from 'lucide-react';
 import { usersApi, UserRow, CreateUserPayload, organisasiApi, userStatsApi, JABATAN_OPTIONS } from '../../services/api';
 import toast from 'react-hot-toast';
 
 // ── Constants ─────────────────────────────────────────────────
 const AVAILABLE_MODULES = [
-  { id: 'pkpt',        label: 'PKPT — Perencanaan Pengawasan Tahunan', icon: Calendar },
-  { id: 'pelaksanaan', label: 'Pelaksanaan Audit & Kertas Kerja',       icon: Shield },
-  { id: 'pelaporan',   label: 'Pelaporan & Komunikasi Hasil',           icon: FileText },
-  { id: 'sintesis',    label: 'Sintesis Hasil Pengawasan',              icon: PieChart },
-  { id: 'pemantauan',  label: 'Pemantauan Tindak Lanjut Temuan',        icon: CheckSquare },
-  { id: 'ca-cm',       label: 'Dashboard CA-CM',                        icon: LayoutDashboard },
+  { id: 'pkpt',        label: 'PKPT — Perencanaan Pengawasan Tahunan',       icon: Calendar },
+  { id: 'individual',  label: 'Individual — Perencanaan Pengawasan Individual', icon: Layers },
+  { id: 'pelaksanaan', label: 'Pelaksanaan Audit & Kertas Kerja',              icon: Shield },
+  { id: 'pelaporan',   label: 'Pelaporan & Komunikasi Hasil',                  icon: FileText },
+  { id: 'sintesis',    label: 'Sintesis Hasil Pengawasan',                     icon: PieChart },
+  { id: 'pemantauan',  label: 'Pemantauan Tindak Lanjut Temuan',               icon: CheckSquare },
+  { id: 'ca-cm',       label: 'Dashboard CA-CM',                               icon: LayoutDashboard },
 ] as const;
 
 const ROLE_OPTIONS = [
@@ -94,7 +95,7 @@ function OrgFormSection({
     if (isSPI && departemenId !== '') onChange('departemen_id', '');
   }, [isSPI, departemenId]);
 
-  const baseCls = "w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors";
+  const baseCls = "w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors";
   const getCls = (disabled: boolean) => `${baseCls} ${disabled ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-white border-slate-200'}`;
 
   return (
@@ -149,8 +150,8 @@ function UserDetailModal({ user, onClose }: { user: UserRow; onClose: () => void
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-            <X className="w-5 h-5 text-slate-400" />
+          <button onClick={onClose} className="btn-icon hover:bg-slate-100 text-slate-400">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -247,7 +248,7 @@ function UserDetailModal({ user, onClose }: { user: UserRow; onClose: () => void
               {new Date(user.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
             </span>
           </p>
-          <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-100 transition-all shadow-sm">
+          <button onClick={onClose} className="btn-secondary">
             Tutup
           </button>
         </div>
@@ -289,8 +290,6 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
     if (result) { navigator.clipboard.writeText(result.default_password); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   }
 
-  const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500';
-
   if (result) {
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -316,7 +315,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           <p className="text-[11px] text-amber-600 font-medium mb-4 text-center">
             Catatan: Sampaikan ke user jika suatu saat lupa password, arahkan untuk menghubungi Admin SPI via WhatsApp.
           </p>
-          <button onClick={onClose} className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors">
+          <button onClick={onClose} className="btn-primary w-full justify-center">
             Selesai
           </button>
         </div>
@@ -337,18 +336,18 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
               <p className="text-xs text-slate-400">Password digenerate otomatis</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-400" /></button>
+          <button onClick={onClose} className="btn-icon hover:bg-slate-100 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-6 space-y-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Nama Lengkap <span className="text-red-500">*</span></label>
-              <input type="text" value={form.nama_lengkap} onChange={(e) => setForm((f) => ({ ...f, nama_lengkap: e.target.value }))} placeholder="Budi Santoso" className={inp} />
+              <input type="text" value={form.nama_lengkap} onChange={(e) => setForm((f) => ({ ...f, nama_lengkap: e.target.value }))} placeholder="Budi Santoso" className="input" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Role <span className="text-red-500">*</span></label>
-              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className={inp}>
+              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="select-input">
                 {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
@@ -361,7 +360,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
                 value={form.nik}
                 onChange={(e) => setForm((f) => ({ ...f, nik: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                 placeholder="6 digit angka"
-                className={`${inp} ${form.nik.length > 0 && form.nik.length !== 6 ? '!border-red-400 focus:!ring-red-500/20 focus:!border-red-500' : ''}`}
+                className={`input ${form.nik.length > 0 && form.nik.length !== 6 ? '!border-red-400 focus:!ring-red-500/20 focus:!border-red-500' : ''}`}
               />
               {form.nik.length > 0 && form.nik.length !== 6 && (
                 <p className="mt-1 text-xs font-medium text-red-600">NIK harus tepat 6 digit angka (saat ini: {form.nik.length}).</p>
@@ -369,11 +368,11 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Email Notifikasi <span className="text-red-500">*</span></label>
-              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="budi@satria.app" className={inp} />
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="budi@satria.app" className="input" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Jabatan Struktural</label>
-              <select value={form.jabatan ?? ''} onChange={(e) => setForm((f) => ({ ...f, jabatan: e.target.value }))} className={inp}>
+              <select value={form.jabatan ?? ''} onChange={(e) => setForm((f) => ({ ...f, jabatan: e.target.value }))} className="select-input">
                 <option value="">— Pilih Jabatan —</option>
                 {JABATAN_OPTIONS.map((j) => <option key={j} value={j}>{j}</option>)}
               </select>
@@ -391,8 +390,8 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex gap-3 p-6 pt-0">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">Batal</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || form.nik.length !== 6 || !form.nama_lengkap || !form.email} className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || form.nik.length !== 6 || !form.nama_lengkap || !form.email} className="btn-primary flex-1 justify-center">
             {mutation.isPending ? 'Menyimpan...' : 'Buat User'}
           </button>
         </div>
@@ -437,8 +436,6 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
     },
   });
 
-  const inp = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500';
-
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -452,7 +449,7 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
               <p className="text-xs text-slate-400">NIK saat ini: {user.nik}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-400" /></button>
+          <button onClick={onClose} className="btn-icon hover:bg-slate-100 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div className="flex flex-col gap-4">
@@ -466,7 +463,7 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
                 maxLength={6}
                 value={form.nik}
                 onChange={(e) => setForm((f) => ({ ...f, nik: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                className={`${inp} ${!nikValid ? '!border-red-400 focus:!ring-red-500/20 focus:!border-red-500' : ''}`}
+                className={`input ${!nikValid ? '!border-red-400 focus:!ring-red-500/20 focus:!border-red-500' : ''}`}
               />
               {!nikValid && (
                 <p className="mt-1 text-[11px] font-medium text-red-600">NIK harus tepat 6 digit angka.</p>
@@ -479,21 +476,21 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Role</label>
-              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className={inp}>
+              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="select-input">
                 {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Nama Lengkap</label>
-              <input type="text" value={form.nama_lengkap} onChange={(e) => setForm((f) => ({ ...f, nama_lengkap: e.target.value }))} className={inp} />
+              <input type="text" value={form.nama_lengkap} onChange={(e) => setForm((f) => ({ ...f, nama_lengkap: e.target.value }))} className="input" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Email Notifikasi</label>
-              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inp} />
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="input" />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600">Jabatan Struktural</label>
-              <select value={form.jabatan} onChange={(e) => setForm((f) => ({ ...f, jabatan: e.target.value }))} className={inp}>
+              <select value={form.jabatan} onChange={(e) => setForm((f) => ({ ...f, jabatan: e.target.value }))} className="select-input">
                 <option value="">— Pilih Jabatan —</option>
                 {JABATAN_OPTIONS.map((j) => <option key={j} value={j}>{j}</option>)}
               </select>
@@ -510,8 +507,8 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
           </div>
         </div>
         <div className="flex gap-3 p-6 pt-0">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">Batal</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !nikValid} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !nikValid} className="btn-primary flex-1 justify-center">
             {mutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
@@ -558,7 +555,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRow; onClose: () => v
               {copied ? 'Tersalin!' : 'Salin'}
             </button>
           </div>
-          <button onClick={onClose} className="w-full py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700">Selesai</button>
+          <button onClick={onClose} className="btn-primary w-full justify-center">Selesai</button>
         </div>
       </div>
     );
@@ -572,7 +569,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRow; onClose: () => v
             <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center"><KeyRound className="w-5 h-5 text-amber-600" /></div>
             <div><h2 className="font-bold text-slate-800">Kelola Password</h2><p className="text-xs text-slate-400">{user.nama_lengkap}</p></div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-400" /></button>
+          <button onClick={onClose} className="btn-icon hover:bg-slate-100 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-2">
@@ -600,7 +597,7 @@ function ResetPasswordModal({ user, onClose }: { user: UserRow; onClose: () => v
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1.5">Password Baru (min. 6 karakter)</label>
               <div className="relative">
-                <input type={showPw ? 'text' : 'password'} value={customPw} onChange={(e) => setCustomPw(e.target.value)} placeholder="Masukkan password baru..." className="w-full px-3 py-2 pr-10 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                <input type={showPw ? 'text' : 'password'} value={customPw} onChange={(e) => setCustomPw(e.target.value)} placeholder="Masukkan password baru..." className="input pr-10" />
                 <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -610,11 +607,11 @@ function ResetPasswordModal({ user, onClose }: { user: UserRow; onClose: () => v
 
         </div>
         <div className="flex gap-3 p-6 pt-0">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50">Batal</button>
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
           <button
             onClick={() => mode === 'default' ? resetDefault.mutate() : setCustom.mutate()}
             disabled={resetDefault.isPending || setCustom.isPending || (mode === 'custom' && customPw.length < 6)}
-            className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            className="btn-primary flex-1 justify-center"
           >
             {(resetDefault.isPending || setCustom.isPending) ? 'Memproses...' : 'Konfirmasi'}
           </button>
@@ -645,7 +642,7 @@ function ModuleAccessModal({ user, onClose }: { user: UserRow; onClose: () => vo
             <div className="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center"><Layers className="w-5 h-5 text-violet-600" /></div>
             <div><h2 className="font-bold text-slate-800">Kelola Akses Modul</h2><p className="text-xs text-slate-400">{user.nama_lengkap}</p></div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-400" /></button>
+          <button onClick={onClose} className="btn-icon hover:bg-slate-100 text-slate-400"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-6 space-y-2">
           {AVAILABLE_MODULES.map((mod) => {
@@ -661,8 +658,8 @@ function ModuleAccessModal({ user, onClose }: { user: UserRow; onClose: () => vo
           })}
         </div>
         <div className="flex gap-3 p-6 pt-0">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50">Batal</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="flex-1 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700 transition-colors">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1 justify-center">
             Simpan Perubahan
           </button>
         </div>
@@ -685,6 +682,7 @@ export default function UserManagementPage() {
   const [resetTarget, setResetTarget]             = useState<UserRow | null>(null);
   const [editTarget, setEditTarget]               = useState<UserRow | null>(null);
   const [moduleAccessTarget, setModuleAccessTarget] = useState<UserRow | null>(null);
+  const [deleteTarget, setDeleteTarget]           = useState<UserRow | null>(null);
 
   const { data: userRes, isLoading, refetch } = useQuery({
     queryKey: ['users', search, roleFilter, activeFilter, page],
@@ -707,15 +705,9 @@ export default function UserManagementPage() {
 
   const deleteUser = useMutation({
     mutationFn: (id: string) => usersApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user-stats'] }); toast.success('User dihapus.'); },
-    onError: () => toast.error('Gagal menghapus user.'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user-stats'] }); toast.success('User dihapus.'); setDeleteTarget(null); },
+    onError: () => { toast.error('Gagal menghapus user.'); },
   });
-
-  function confirmDelete(user: UserRow) {
-    if (window.confirm(`Hapus user "${user.nama_lengkap}"? Tindakan ini tidak dapat dibatalkan.`)) {
-      deleteUser.mutate(user.id);
-    }
-  }
 
   const users = userRes?.data ?? [];
   const total = userRes?.meta?.total ?? stats?.total ?? 0;
@@ -735,8 +727,8 @@ export default function UserManagementPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"><RefreshCw className="w-4 h-4" /></button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors">
+          <button onClick={() => refetch()} className="btn-icon hover:bg-slate-100 text-slate-500" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={() => setShowCreate(true)} className="btn-primary">
             <Plus className="w-4 h-4" /> Tambah User
           </button>
         </div>
@@ -744,71 +736,94 @@ export default function UserManagementPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="bg-slate-50 rounded-xl border border-slate-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-3.5 h-3.5 text-slate-800" />
-            <p className="text-xs text-slate-400">Total User</p>
+        <div className="stat-card">
+          <div className="p-2 rounded-lg flex-shrink-0 bg-primary-50 text-primary-600">
+            <Users className="w-5 h-5" />
           </div>
-          <p className="text-2xl font-bold text-slate-800">{stats?.total ?? 0}</p>
+          <div>
+            <p className="text-2xl font-bold leading-none text-slate-900">{stats?.total ?? 0}</p>
+            <p className="text-xs font-bold mt-1 text-slate-500">Total User</p>
+          </div>
         </div>
-        <div className="bg-green-50 rounded-xl border border-slate-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-3.5 h-3.5 text-green-600" />
-            <p className="text-xs text-slate-400">User Aktif</p>
+
+        <div className="stat-card">
+          <div className="p-2 rounded-lg flex-shrink-0 bg-green-50 text-green-600">
+            <Users className="w-5 h-5" />
           </div>
-          <p className="text-2xl font-bold text-green-600">{stats?.aktif ?? 0}</p>
+          <div>
+            <p className="text-2xl font-bold leading-none text-slate-900">{stats?.aktif ?? 0}</p>
+            <p className="text-xs font-bold mt-1 text-green-700">User Aktif</p>
+          </div>
         </div>
-        <div className="bg-red-50 rounded-xl border border-slate-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-3.5 h-3.5 text-red-500" />
-            <p className="text-xs text-slate-400">User Non-Aktif</p>
+
+        <div className="stat-card">
+          <div className="p-2 rounded-lg flex-shrink-0 bg-red-50 text-red-500">
+            <Users className="w-5 h-5" />
           </div>
-          <p className="text-2xl font-bold text-red-500">{stats?.non_aktif ?? 0}</p>
+          <div>
+            <p className="text-2xl font-bold leading-none text-slate-900">{stats?.non_aktif ?? 0}</p>
+            <p className="text-xs font-bold mt-1 text-red-600">User Non-Aktif</p>
+          </div>
         </div>
-        <div className="bg-blue-50 rounded-xl border border-slate-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-            <p className="text-xs text-slate-400">Total Divisi</p>
+
+        <div className="stat-card">
+          <div className="p-2 rounded-lg flex-shrink-0 bg-blue-50 text-blue-600">
+            <Building2 className="w-5 h-5" />
           </div>
-          <p className="text-2xl font-bold text-blue-600">{stats?.divisi_count ?? 0}</p>
+          <div>
+            <p className="text-2xl font-bold leading-none text-slate-900">{stats?.divisi_count ?? 0}</p>
+            <p className="text-xs font-bold mt-1 text-slate-500">Total Divisi</p>
+          </div>
         </div>
-        <div className="bg-purple-50 rounded-xl border border-slate-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Layers2 className="w-3.5 h-3.5 text-purple-600" />
-            <p className="text-xs text-slate-400">Total Departemen</p>
+
+        <div className="stat-card">
+          <div className="p-2 rounded-lg flex-shrink-0 bg-violet-50 text-violet-600">
+            <Layers2 className="w-5 h-5" />
           </div>
-          <p className="text-2xl font-bold text-purple-600">{stats?.departemen_count ?? 0}</p>
+          <div>
+            <p className="text-2xl font-bold leading-none text-slate-900">{stats?.departemen_count ?? 0}</p>
+            <p className="text-xs font-bold mt-1 text-slate-500">Total Departemen</p>
+          </div>
         </div>
       </div>
 
-      {/* Filters - Dirubah menjadi vertikal */}
-      <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col sm:flex-row gap-4">
-        <div className="flex-1 flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-600">Pencarian</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text" placeholder="Cari nama, NIK, atau email..."
-              value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+      {/* Filters */}
+      <div className="filter-card">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Pencarian</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text" placeholder="Cari nama, NIK, atau email..."
+                value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="input pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Role</label>
+            <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Role</option>
+              {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Status</label>
+            <select value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Status</option>
+              <option value="true">Aktif</option>
+              <option value="false">Non-aktif</option>
+            </select>
           </div>
         </div>
-        <div className="flex flex-col gap-1.5 sm:w-48">
-          <label className="text-xs font-semibold text-slate-600">Filter Role</label>
-          <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-            <option value="">Semua Role</option>
-            {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5 sm:w-48">
-          <label className="text-xs font-semibold text-slate-600">Status User</label>
-          <select value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-            <option value="">Semua Status</option>
-            <option value="true">Aktif</option>
-            <option value="false">Non-aktif</option>
-          </select>
-        </div>
+        {(search || roleFilter || activeFilter) && (
+          <div className="flex items-center gap-2 pt-1">
+            {search && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{search} <button onClick={() => { setSearch(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            {roleFilter && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{ROLE_OPTIONS.find(r => r.value === roleFilter)?.label} <button onClick={() => { setRoleFilter(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            {activeFilter && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{activeFilter === 'true' ? 'Aktif' : 'Non-aktif'} <button onClick={() => { setActiveFilter(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -825,25 +840,24 @@ export default function UserManagementPage() {
         </div>
 
         <div className="overflow-x-auto">
-          {/* min-w-[900px] dihapus agar pas dengan layar tanpa scroll horizontal jika memungkinkan */}
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Lengkap</th>
-                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">NIK</th>
-                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email</th>
-                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Role</th>
-                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Divisi</th>
-                <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Departemen</th>
-                <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
+          <table className="table-base min-w-[800px]">
+            <thead className="table-head">
+              <tr>
+                <th>Nama Lengkap</th>
+                <th>NIK</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Divisi</th>
+                <th>Departemen</th>
+                <th className="text-center">Status</th>
+                <th className="text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i} className="border-b border-slate-50">
-                    <td colSpan={8} className="px-5 py-4"><div className="h-4 bg-slate-100 rounded animate-pulse" /></td>
+                  <tr key={i}>
+                    <td colSpan={8}><div className="h-4 bg-slate-100 rounded animate-pulse" /></td>
                   </tr>
                 ))
               ) : users.length === 0 ? (
@@ -855,42 +869,42 @@ export default function UserManagementPage() {
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
+                  <tr key={user.id} className="table-row">
+                    <td>
                       <p className="text-sm font-semibold text-slate-800 line-clamp-1">{user.nama_lengkap}</p>
                     </td>
-                    <td className="px-3 py-3">
+                    <td>
                       <code className="text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{user.nik}</code>
                     </td>
-                    <td className="px-3 py-3">
+                    <td>
                       <div className="flex items-center gap-1.5 text-slate-500">
                         <Mail className="w-3 h-3 flex-shrink-0" />
                         <span className="text-[11px] line-clamp-1 break-all">{user.email || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-3"><RoleBadge role={user.role} /></td>
-                    <td className="px-3 py-3">
+                    <td><RoleBadge role={user.role} /></td>
+                    <td>
                       <p className="text-[11px] font-medium text-slate-600 line-clamp-2 leading-tight">{user.divisi_nama || '-'}</p>
                     </td>
-                    <td className="px-3 py-3">
+                    <td>
                       <p className="text-[11px] font-medium text-slate-600 line-clamp-2 leading-tight">{user.departemen_nama || '-'}</p>
                     </td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">
-                      <span className={`inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide font-bold ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    <td className="text-center whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide font-bold ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-red-400'}`} />
                         {user.is_active ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <td className="text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setDetailTarget(user)} title="Lihat Detail" className="p-1 text-slate-400 hover:text-blue-600 rounded"><Eye className="w-4 h-4" /></button>
-                          <button onClick={() => setEditTarget(user)} title="Edit User" className="p-1 text-slate-400 hover:text-indigo-600 rounded"><Edit2 className="w-4 h-4" /></button>
-                          <button onClick={() => setModuleAccessTarget(user)} title="Akses Modul" className="p-1 text-slate-400 hover:text-violet-600 rounded"><Layers className="w-4 h-4" /></button>
-                          <button onClick={() => setResetTarget(user)} title="Reset Password" className="p-1 text-slate-400 hover:text-amber-600 rounded"><KeyRound className="w-4 h-4" /></button>
-                          <button onClick={() => toggleActive.mutate(user.id)} title={user.is_active ? 'Nonaktifkan' : 'Aktifkan'} className="p-1 text-slate-400 hover:text-orange-600 rounded">
-                            {user.is_active ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                          </button>
-                          <button onClick={() => confirmDelete(user)} title="Hapus User" className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => setDetailTarget(user)} title="Lihat Detail" className="btn-icon text-slate-400 hover:text-blue-600 hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
+                        <button onClick={() => setEditTarget(user)} title="Edit User" className="btn-icon text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => setModuleAccessTarget(user)} title="Akses Modul" className="btn-icon text-slate-400 hover:text-violet-600 hover:bg-violet-50"><Layers className="w-4 h-4" /></button>
+                        <button onClick={() => setResetTarget(user)} title="Reset Password" className="btn-icon text-slate-400 hover:text-amber-600 hover:bg-amber-50"><KeyRound className="w-4 h-4" /></button>
+                        <button onClick={() => toggleActive.mutate(user.id)} title={user.is_active ? 'Nonaktifkan' : 'Aktifkan'} className="btn-icon text-slate-400 hover:text-orange-600 hover:bg-orange-50">
+                          {user.is_active ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setDeleteTarget(user)} title="Hapus User" className="btn-icon text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -902,35 +916,35 @@ export default function UserManagementPage() {
 
         {/* Footer Navigasi Pagination */}
         {pages > 1 && (
-          <div className="px-5 py-3 flex items-center justify-between border-t border-slate-100 bg-white">
-            <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Halaman {page} dari {pages}</span>
-            <div className="flex gap-1.5">
-              <button 
-                disabled={page <= 1} 
-                onClick={() => setPage((p) => p - 1)} 
-                className="flex items-center justify-center px-2 py-1.5 text-xs bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+          <div className="px-5 py-3 flex items-center justify-between border-t border-slate-100 bg-slate-50">
+            <span className="text-xs text-slate-500">Halaman {page} dari {pages}</span>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
               {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
                 const pg = pages <= 5 ? i + 1 : Math.max(1, page - 2) + i;
                 if (pg > pages) return null;
                 return (
-                  <button 
-                    key={pg} 
-                    onClick={() => setPage(pg)} 
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shadow-sm ${page === pg ? 'bg-primary-600 border-primary-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  <button
+                    key={pg}
+                    onClick={() => setPage(pg)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${page === pg ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
                   >
                     {pg}
                   </button>
                 );
               })}
-              <button 
-                disabled={page >= pages} 
-                onClick={() => setPage((p) => p + 1)} 
-                className="flex items-center justify-center px-2 py-1.5 text-xs bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+              <button
+                disabled={page >= pages}
+                onClick={() => setPage((p) => p + 1)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -955,6 +969,37 @@ export default function UserManagementPage() {
       {resetTarget       && <ResetPasswordModal user={resetTarget}      onClose={() => setResetTarget(null)} />}
       {editTarget        && <EditUserModal     user={editTarget}        onClose={() => setEditTarget(null)} />}
       {moduleAccessTarget && <ModuleAccessModal user={moduleAccessTarget} onClose={() => setModuleAccessTarget(null)} />}
+
+      {deleteTarget && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm" onClick={() => !deleteUser.isPending && setDeleteTarget(null)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full pointer-events-auto space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Hapus User?</p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Akun <strong className="text-slate-700">{deleteTarget.nama_lengkap}</strong> ({deleteTarget.nik}) akan dihapus permanen dari sistem. Tindakan ini tidak dapat dibatalkan.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteTarget(null)} disabled={deleteUser.isPending} className="btn-secondary flex-1 justify-center">Batal</button>
+                <button
+                  onClick={() => deleteUser.mutate(deleteTarget.id)}
+                  disabled={deleteUser.isPending}
+                  className="btn-danger flex-1 justify-center"
+                >
+                  {deleteUser.isPending ? 'Menghapus...' : 'Ya, Hapus User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

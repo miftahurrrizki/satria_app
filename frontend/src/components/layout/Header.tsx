@@ -6,7 +6,7 @@ import {
 import { useAuthStore } from '../../store/auth.store';
 import { useNotificationStore } from '../../store/notification.store';
 import { useQuery } from '@tanstack/react-query';
-import { notificationsApi } from '../../services/api';
+import { notificationsApi, authApi } from '../../services/api';
 import NotificationPanel from '../notifications/NotificationPanel';
 import { ROLE_LABELS } from '../../types';
 import toast from 'react-hot-toast';
@@ -15,22 +15,27 @@ const ADMIN_ROLES = ['admin_spi', 'it_admin'];
 const SETTINGS_ROLES = ['kepala_spi', 'admin_spi'];
 
 const MOBILE_NAV = [
-  { to: '/',                       icon: Home,     label: 'Home',                              roles: null },
-  { to: '/perencanaan/pkpt',       icon: FileText, label: 'Perencanaan Pengawasan Tahunan',    roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
-  { to: '/admin/users',            icon: Users,    label: 'Manajemen User',                    roles: ['admin_spi','it_admin'] },
+  { to: '/',                         icon: Home,     label: 'Home',                               roles: null },
+  { to: '/perencanaan/pkpt',         icon: FileText, label: 'Perencanaan Pengawasan Tahunan',     roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
+  { to: '/perencanaan/individual',   icon: FileText, label: 'Perencanaan Pengawasan Individual',  roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
+  { to: '/admin/users',              icon: Users,    label: 'Manajemen User',                     roles: ['admin_spi','it_admin'] },
 ];
 
 const PAGE_TITLES: { pattern: string; title: string; subtitle?: string }[] = [
-  { pattern: '/perencanaan/pkpt',        title: 'Perencanaan Pengawasan Tahunan', subtitle: 'Modul 1 — PKPT & Non PKPT' },
-  { pattern: '/admin/users',        title: 'Manajemen User',                  subtitle: 'Kelola akun & hak akses pengguna' },
-  { pattern: '/admin/activity-log', title: 'Log Aktivitas Sistem',           subtitle: 'Riwayat aktivitas seluruh pengguna' },
-  { pattern: '/profile',            title: 'Profil Saya',                     subtitle: 'Data akun & keamanan' },
-  { pattern: '/pengaturan',         title: 'Pengaturan Sistem',               subtitle: 'Master data konfigurasi Modul Perencanaan' },
-  { pattern: '/pemantauan',         title: 'Pemantauan Tindak Lanjut Temuan', subtitle: 'Monitoring tindak lanjut hasil audit' },
-  { pattern: '/ca-cm',              title: 'Dashboard CA-CM',                 subtitle: 'Continuous Auditing & Continuous Monitoring' },
-  { pattern: '/perencanaan/*',      title: 'Perencanaan',                     subtitle: 'Modul perencanaan pengawasan' },
-  { pattern: '/admin/*',            title: 'Administrasi',                    subtitle: 'Pengaturan sistem' },
-  { pattern: '/',                   title: 'Dashboard',                       subtitle: 'Sistem Akuntabilitas Internal Audit' },
+  { pattern: '/perencanaan/pkpt',       title: 'Perencanaan Pengawasan Tahunan',    subtitle: 'Modul 1 — PKPT & Non PKPT' },
+  { pattern: '/perencanaan/individual', title: 'Perencanaan Pengawasan Individual', subtitle: 'Modul 2 — Program Kerja Detail per Penugasan' },
+  { pattern: '/pelaksanaan',            title: 'Pelaksanaan Audit & Kertas Kerja',  subtitle: 'Modul 3 — Dalam Pengembangan' },
+  { pattern: '/pelaporan',              title: 'Pelaporan & Komunikasi Hasil',      subtitle: 'Modul 4 — Dalam Pengembangan' },
+  { pattern: '/sintesis',               title: 'Sintesis Hasil Pengawasan',         subtitle: 'Modul 5 — Dalam Pengembangan' },
+  { pattern: '/pemantauan',             title: 'Pemantauan Tindak Lanjut Temuan',  subtitle: 'Modul 6 — Monitoring tindak lanjut hasil audit' },
+  { pattern: '/ca-cm',                  title: 'Dashboard CA-CM',                  subtitle: 'Modul 7 — Continuous Auditing & Continuous Monitoring' },
+  { pattern: '/admin/users',            title: 'Manajemen User',                   subtitle: 'Kelola akun & hak akses pengguna' },
+  { pattern: '/admin/activity-log',     title: 'Log Aktivitas Sistem',             subtitle: 'Riwayat aktivitas seluruh pengguna' },
+  { pattern: '/profile',                title: 'Profil Saya',                      subtitle: 'Data akun & keamanan' },
+  { pattern: '/pengaturan',             title: 'Pengaturan Sistem',                subtitle: 'Master data konfigurasi Modul Perencanaan' },
+  { pattern: '/perencanaan/*',          title: 'Perencanaan',                      subtitle: 'Modul perencanaan pengawasan' },
+  { pattern: '/admin/*',                title: 'Administrasi',                     subtitle: 'Pengaturan sistem' },
+  { pattern: '/',                       title: 'Dashboard',                        subtitle: 'Sistem Akuntabilitas Internal Audit' },
 ];
 
 function getPageTitle(pathname: string) {
@@ -52,19 +57,33 @@ export default function Header() {
   useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const res = await notificationsApi.getAll();
-      setNotifications(res.data.data ?? [], res.data.meta?.unread_count ?? 0);
-      return res.data;
+      try {
+        const res = await notificationsApi.getAll();
+        setNotifications(res.data.data ?? [], res.data.meta?.unread_count ?? 0);
+        return res.data;
+      } catch (err) {
+        // Jangan crash halaman jika notifikasi gagal — cukup log
+        console.warn('[Header] Gagal memuat notifikasi:', err);
+        return null;
+      }
     },
     refetchInterval: 30_000,
     enabled: !!user,
+    retry: 2,
+    retryDelay: 5_000,
   });
 
   useEffect(() => {
     document.title = `${page.title} · SATRIA`;
   }, [page.title]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      // Beritahu server untuk menghapus httpOnly cookie sesi
+      await authApi.logout();
+    } catch {
+      // Lanjutkan logout lokal meski server gagal (cookie akan expire sendiri)
+    }
     logout();
     toast.success('Berhasil keluar');
     navigate('/login');
@@ -126,11 +145,16 @@ export default function Header() {
                 className={`relative p-2 rounded-xl transition-colors ${
                   isPanelOpen ? 'bg-primary-50 text-primary-600' : 'text-slate-500 hover:bg-slate-100'
                 }`}
-                aria-label="Notifikasi"
+                aria-label={`Notifikasi${unreadCount > 0 ? ` (${unreadCount} belum dibaca)` : ''}`}
+                aria-expanded={isPanelOpen}
+                aria-haspopup="true"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-5 h-5" aria-hidden="true" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                  <span
+                    className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white"
+                    aria-hidden="true"
+                  >
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}

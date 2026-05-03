@@ -36,8 +36,8 @@ export default function Login() {
 
     try {
       const res = await authApi.login(nik, password);
-      const { token, user } = res.data.data as { token: string; user: User };
-      setAuth(user, token);
+      const { user } = res.data.data as { user: User };
+      setAuth(user);
       toast.success(`Selamat datang, ${user.nama}!`);
       navigate('/');
     } catch (err: unknown) {

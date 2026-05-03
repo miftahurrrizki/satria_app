@@ -18,8 +18,8 @@ export async function getPendingEvaluations(req: Request, res: Response) {
     if (!userId) return res.status(401).json({ success: false, message: 'Tidak terautentikasi.' });
 
     let stage: 'pengendali_teknis' | 'kepala_spi' | null = null;
-    if (role === 'pengendali_teknis') stage = 'pengendali_teknis';
-    else if (role === 'kepala_spi')   stage = 'kepala_spi';
+    if (role === 'pengendali_teknis')               stage = 'pengendali_teknis';
+    else if (role === 'kepala_spi' || role === 'admin_spi') stage = 'kepala_spi';
     else {
       return res.json({ success: true, data: [] });
     }
@@ -42,8 +42,10 @@ export async function getPendingEvaluations(req: Request, res: Response) {
            AND a.completed_at IS NOT NULL
          ORDER BY a.completed_at DESC`;
 
+    // Query pengendali_teknis butuh [userId] sebagai $1.
+    // Query kepala_spi tidak punya parameter — jangan kirim [userId].
     const plans = await query<{ id: string; judul_program: string; completed_at: string }>(
-      planQuery, [userId],
+      planQuery, stage === 'pengendali_teknis' ? [userId] : [],
     );
     if (plans.rows.length === 0) {
       return res.json({ success: true, data: [] });
@@ -114,8 +116,8 @@ export async function submitEvaluation(req: Request, res: Response) {
     if (!userId) return res.status(401).json({ success: false, message: 'Tidak terautentikasi.' });
 
     const stage =
-      role === 'pengendali_teknis' ? 'pengendali_teknis'
-      : role === 'kepala_spi'      ? 'kepala_spi'
+      role === 'pengendali_teknis'                   ? 'pengendali_teknis'
+      : (role === 'kepala_spi' || role === 'admin_spi') ? 'kepala_spi'
       : null;
     if (!stage) {
       return res.status(403).json({ success: false, message: 'Role tidak berhak menilai.' });

@@ -11,7 +11,7 @@ export type UserRole =
   | 'it_admin';
 
 // Module IDs that can be assigned to users
-export type ModuleId = 'pkpt' | 'pelaksanaan' | 'pelaporan' | 'sintesis' | 'pemantauan' | 'ca-cm';
+export type ModuleId = 'pkpt' | 'individual' | 'pelaksanaan' | 'pelaporan' | 'sintesis' | 'pemantauan' | 'ca-cm';
 
 export interface JwtPayload {
   id:           string;

@@ -114,9 +114,11 @@ class RiskService {
         };
     }
     /**
-     * Get top N risks by inherent score
+     * Get Top 15 risks according to risk appetite/tolerance:
+     * only Ekstrim, Tinggi, and Menengah Tinggi.
      */
     async getTopRisks(tahun, n = 15) {
+        const limit = Math.min(15, Math.max(1, n || 15));
         const query = `
       SELECT
         r.id,
@@ -170,11 +172,16 @@ class RiskService {
       LEFT JOIN master.risk_level_ref rl_t ON rl_t.kode = r.level_target
       LEFT JOIN master.risk_level_ref rl_r ON rl_r.kode = r.level_realisasi
       LEFT JOIN auth.users u ON u.id = r.imported_by
-      WHERE r.tahun = $1 AND r.deleted_at IS NULL
-      ORDER BY r.skor_inherent DESC NULLS LAST, r.id_risiko
+      WHERE r.tahun = $1
+        AND r.deleted_at IS NULL
+        AND r.level_inherent IN ('E', 'T', 'MT')
+      ORDER BY
+        CASE r.level_inherent WHEN 'E' THEN 1 WHEN 'T' THEN 2 WHEN 'MT' THEN 3 ELSE 9 END,
+        r.skor_inherent DESC NULLS LAST,
+        r.id_risiko
       LIMIT $2
     `;
-        const result = await this.pool.query(query, [tahun, n]);
+        const result = await this.pool.query(query, [tahun, limit]);
         return result.rows.map((row) => this._enrichRiskData(row));
     }
     /**

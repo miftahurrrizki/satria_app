@@ -9,6 +9,7 @@ import adminRoutes         from './admin.routes';
 import module1Routes       from './module1.routes';
 import organisasiRoutes    from './organisasi.routes';
 import settingsRoutes      from './settings.routes';
+import penugasanRoutes     from './penugasan.routes';
 
 const router = Router();
 
@@ -29,5 +30,8 @@ router.use('/', organisasiRoutes);
 
 // ── Pengaturan Sistem (HoS, Sasaran, Bobot, Tipe Penugasan) ───
 router.use('/', settingsRoutes);
+
+// ── Modul 2: Perencanaan Pengawasan Individual ────────────────
+router.use('/penugasan', penugasanRoutes);
 
 export default router;

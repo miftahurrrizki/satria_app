@@ -84,9 +84,11 @@ async function getUsers(req, res) {
 async function getUserStats(_req, res) {
     try {
         const result = await (0, database_1.query)(`SELECT
-         COUNT(*)                                  AS total,
-         COUNT(*) FILTER (WHERE is_active = TRUE)  AS aktif,
-         COUNT(*) FILTER (WHERE is_active = FALSE) AS non_aktif
+         COUNT(*)                                                    AS total,
+         COUNT(*) FILTER (WHERE is_active = TRUE)                    AS aktif,
+         COUNT(*) FILTER (WHERE is_active = FALSE)                   AS non_aktif,
+         COUNT(DISTINCT divisi_id) FILTER (WHERE divisi_id IS NOT NULL)       AS divisi_count,
+         COUNT(DISTINCT departemen_id) FILTER (WHERE departemen_id IS NOT NULL) AS departemen_count
        FROM auth.users WHERE deleted_at IS NULL`);
         const row = result.rows[0];
         logger_1.default.info(`[USERS] Fetched user statistics`);
@@ -96,6 +98,8 @@ async function getUserStats(_req, res) {
                 total: Number(row.total),
                 aktif: Number(row.aktif),
                 non_aktif: Number(row.non_aktif),
+                divisi_count: Number(row.divisi_count),
+                departemen_count: Number(row.departemen_count),
             },
         });
     }

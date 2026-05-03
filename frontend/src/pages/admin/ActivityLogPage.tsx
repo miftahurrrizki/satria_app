@@ -236,56 +236,74 @@ export default function ActivityLogPage() {
       )}
 
       {/* ── Filter card ── */}
-      <div className="card p-4">
-        <div className="flex flex-wrap gap-3">
-          {/* Search */}
-          <div className="flex-1 min-w-48 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Cari nama user, aksi..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="input pl-9 h-10 w-full"
-            />
+      <div className="filter-card">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="flex flex-col gap-1.5 lg:col-span-1">
+            <label className="section-label">Pencarian</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Cari nama user, aksi..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="input pl-9"
+              />
+            </div>
           </div>
 
-          <select value={modul} onChange={(e) => { setModul(e.target.value); setPage(1); }} className="select-input h-10 w-auto">
-            <option value="">Semua Modul</option>
-            {(meta?.moduls ?? []).map((m) => (
-              <option key={m} value={m}>{MODUL_LABELS[m] ?? m}</option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Modul</label>
+            <select value={modul} onChange={(e) => { setModul(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Modul</option>
+              {(meta?.moduls ?? []).map((m) => (
+                <option key={m} value={m}>{MODUL_LABELS[m] ?? m}</option>
+              ))}
+            </select>
+          </div>
 
-          <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className="select-input h-10 w-auto">
-            <option value="">Semua Aksi</option>
-            {(meta?.actions ?? []).map((a) => (
-              <option key={a} value={a}>{actionLabels[a] ?? a}</option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Aksi</label>
+            <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Aksi</option>
+              {(meta?.actions ?? []).map((a) => (
+                <option key={a} value={a}>{actionLabels[a] ?? a}</option>
+              ))}
+            </select>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Dari</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="input h-10 w-auto text-sm"
+              className="input"
             />
-            <span className="text-slate-400 text-sm">—</span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="section-label">Sampai</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="input h-10 w-auto text-sm"
+              className="input"
             />
           </div>
-
-          {hasFilters && (
-            <button onClick={handleReset} className="btn-secondary h-10">
-              <X className="w-3.5 h-3.5" /> Reset Filter
-            </button>
-          )}
         </div>
+
+        {hasFilters && (
+          <div className="flex items-center gap-2 pt-1">
+            {search && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{search} <button onClick={() => { setSearch(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            {modul && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{MODUL_LABELS[modul] ?? modul} <button onClick={() => { setModul(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            {action && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{actionLabels[action] ?? action} <button onClick={() => { setAction(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            {(dateFrom || dateTo) && <span className="filter-chip bg-primary-50 text-primary-700 border-primary-200">{dateFrom || '…'} — {dateTo || '…'} <button onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }} className="ml-0.5 hover:text-primary-900"><X className="w-3 h-3" /></button></span>}
+            <button onClick={handleReset} className="btn-secondary">
+              <X className="w-3.5 h-3.5" /> Reset Semua
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Table ── */}
@@ -433,7 +451,7 @@ export default function ActivityLogPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -444,7 +462,7 @@ export default function ActivityLogPage() {
                   <button
                     key={p}
                     onClick={() => setPage(p)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${p === page ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
                   >
                     {p}
                   </button>
@@ -453,7 +471,7 @@ export default function ActivityLogPage() {
               <button
                 onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                 disabled={page >= meta.totalPages}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 disabled:opacity-30 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

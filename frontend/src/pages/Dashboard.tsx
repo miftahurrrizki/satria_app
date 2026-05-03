@@ -23,6 +23,15 @@ const MODULES = [
     isActive:  true,
   },
   {
+    id:        'individual',
+    icon:      Layers,
+    title:     'Perencanaan Pengawasan Individual',
+    subtitle:  'Menyusun program kerja audit individual lengkap dengan tujuan, risiko, prosedur, dan rincian kegiatan per penugasan.',
+    path:      '/perencanaan/individual',
+    roles:     ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] as UserRole[],
+    isActive:  true,
+  },
+  {
     id:        'pelaksanaan',
     icon:      Shield,
     title:     'Pelaksanaan Audit & Kertas Kerja',
@@ -81,7 +90,7 @@ const APP_DESCRIPTION =
   'Sistem Akuntabilitas for TransJakarta Internal Audit (SATRIA) dikembangkan untuk mendukung kegiatan pengawasan dan audit internal oleh Satuan Pengawas Internal (SPI) PT Transportasi Jakarta. Aplikasi ini berfungsi sebagai sistem terintegrasi yang mengelola seluruh siklus audit, mulai dari perencanaan pengawasan tahunan, pelaksanaan audit, pemantauan tindak lanjut, hingga Dashboard CA-CM demi meningkatkan efektivitas dan efisiensi perusahaan.';
 
 // Module definitions with their IDs for access control
-const MODULE_IDS = ['pkpt', 'pelaksanaan', 'pelaporan', 'sintesis', 'pemantauan', 'ca-cm'] as const;
+const MODULE_IDS = ['pkpt', 'individual', 'pelaksanaan', 'pelaporan', 'sintesis', 'pemantauan', 'ca-cm'] as const;
 export type ModuleId = typeof MODULE_IDS[number];
 
 // Helper to check if user has access to a module

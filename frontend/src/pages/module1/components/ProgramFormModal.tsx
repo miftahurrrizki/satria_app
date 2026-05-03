@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   X, Loader2, Users, CalendarDays, AlertTriangle,
-  Search, ChevronDown, Building2,
+  Search, ChevronDown, Building2, FileText, ShieldCheck,
 } from 'lucide-react';
-import { annualPlansApi, auditorsApi, risksApi, workloadApi, organisasiApi, settingsApi, CreatePlanPayload } from '../../../services/api';
+import { annualPlansApi, auditorsApi, risksApi, workloadApi, organisasiApi, settingsApi, ceoLetterApi, CeoAreaWithLetter, CreatePlanPayload } from '../../../services/api';
 import { AnnualAuditPlan, AnnualAuditPlanDetail, Auditor, Departemen, Divisi, JenisProgram, KategoriProgram, RiskData, RiskLevelKode, StatusProgram } from '../../../types';
 import toast from 'react-hot-toast';
 
@@ -29,6 +29,7 @@ interface FormState {
   anggota_ids:           string[];
   hari_penugasan:      string;            // jumlah hari penugasan global untuk semua anggota tim
   risk_ids:            string[];
+  ceo_area_ids:        string[];
   // Finansial (Fase 5 — disederhanakan)
   anggaran:            string;            // simpan sebagai string supaya input tetap nyaman
   kategori_anggaran:   string;
@@ -53,6 +54,7 @@ function calcEstimasi(mulai: string, selesai: string): number {
 
 export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }: Props) {
   const isEdit = !!editData;
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState<FormState>({
     jenis_program:        'PKPT',
@@ -68,11 +70,13 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
     anggota_ids:           [],
     hari_penugasan:       '',
     risk_ids:             [],
+    ceo_area_ids:         [],
     anggaran:             '',
     kategori_anggaran:    '',
   });
 
-  const [riskSearch,   setRiskSearch]   = useState('');
+  const [riskSearch,    setRiskSearch]    = useState('');
+  const [ceoAreaSearch, setCeoAreaSearch] = useState('');
   const [pengendaliOpen, setPengendaliOpen] = useState(false);
   const [ketuaOpen,      setKetuaOpen]      = useState(false);
   const [anggotaOpen,    setAnggotaOpen]    = useState(false);
@@ -101,6 +105,7 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
       const ketuaIds      = detailRes.team?.filter((t) => t.role_tim === 'Ketua Tim').map((t) => t.user_id) ?? [];
       const anggotaIds    = detailRes.team?.filter((t) => t.role_tim === 'Anggota Tim').map((t) => t.user_id) ?? [];
       const riskIds     = detailRes.risks?.map((r) => r.id) ?? [];
+      const ceoAreaIds  = detailRes.ceo_areas?.map((a) => a.id) ?? [];
       const hariAlokasiValues = (detailRes.team ?? [])
         .map((t) => t.hari_alokasi)
         .filter((v): v is number => v != null);
@@ -119,6 +124,7 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
         anggota_ids:           anggotaIds,
         hari_penugasan:       hariAlokasiValues.length > 0 ? String(hariAlokasiValues[0]) : '',
         risk_ids:             riskIds,
+        ceo_area_ids:         ceoAreaIds,
         anggaran:             detailRes.anggaran != null ? String(detailRes.anggaran) : '',
         kategori_anggaran:    detailRes.kategori_anggaran ?? '',
       });
@@ -171,12 +177,21 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
   });
 
 const { data: riskRes } = useQuery({
-    queryKey: ['risks-for-program', tahun],
+    queryKey: ['top-risks-for-program', tahun],
     queryFn: async () => {
-      const res = await risksApi.getAll({ tahun, limit: 100 });
-      return res.data.data as unknown;
+      const res = await risksApi.getTop({ tahun, n: 20 });
+      return res.data.data ?? [];
     },
     enabled: form.jenis_program === 'PKPT',
+  });
+
+  const { data: ceoAreasRes } = useQuery({
+    queryKey: ['ceo-areas-for-program', tahun],
+    queryFn: async () => {
+      const res = await ceoLetterApi.getAreas(tahun);
+      return (res.data.data ?? []) as CeoAreaWithLetter[];
+    },
+    staleTime: 60_000,
   });
 
   const auditors: Auditor[] = auditorsRes ?? [];
@@ -184,9 +199,7 @@ const { data: riskRes } = useQuery({
   const departemenList: Departemen[] = departemenRes ?? [];
   const divisiById = useMemo(() => new Map(divisiList.map((d) => [d.id, d])), [divisiList]);
   const departemenById = useMemo(() => new Map(departemenList.map((d) => [d.id, d])), [departemenList]);
-  const allRisks: RiskData[] = Array.isArray(riskRes)
-    ? (riskRes as RiskData[])
-    : ((riskRes as { data?: RiskData[] })?.data ?? []);
+  const allRisks: RiskData[] = riskRes ?? [];
 
   const formatAuditee = (deptIds: string[]) => {
     const groups = new Map<string, { divisiName: string; deptNames: string[] }>();
@@ -392,6 +405,24 @@ const { data: riskRes } = useQuery({
     }));
   }
 
+  function toggleCeoArea(id: string) {
+    setForm((f) => ({
+      ...f,
+      ceo_area_ids: f.ceo_area_ids.includes(id) ? f.ceo_area_ids.filter((x) => x !== id) : [...f.ceo_area_ids, id],
+    }));
+  }
+
+  const allCeoAreas: CeoAreaWithLetter[] = ceoAreasRes ?? [];
+  const filteredCeoAreas = useMemo(() => {
+    const q = ceoAreaSearch.trim().toLowerCase();
+    if (!q) return allCeoAreas;
+    return allCeoAreas.filter(
+      (a) =>
+        a.parameter.toLowerCase().includes(q) ||
+        (a.judul_surat ?? '').toLowerCase().includes(q),
+    );
+  }, [allCeoAreas, ceoAreaSearch]);
+
   const saveMut = useMutation({
     mutationFn: () => {
       const payload: CreatePlanPayload = {
@@ -418,7 +449,8 @@ const { data: riskRes } = useQuery({
           });
           return out;
         })(),
-        risk_ids:             form.jenis_program === 'PKPT' && form.risk_ids.length > 0 ? form.risk_ids : undefined,
+        risk_ids:             form.jenis_program === 'PKPT' ? form.risk_ids : undefined,
+        ceo_area_ids:         form.ceo_area_ids,
         // Finansial (Fase 5 — disederhanakan)
         anggaran:             form.anggaran          === '' ? null : Number(form.anggaran),
         kategori_anggaran:    form.kategori_anggaran === '' ? null : form.kategori_anggaran,
@@ -426,6 +458,10 @@ const { data: riskRes } = useQuery({
       return isEdit ? annualPlansApi.update(editData!.id, payload) : annualPlansApi.create(payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['annual-plan-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['annual-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['ceo-letter'] });
+      queryClient.invalidateQueries({ queryKey: ['risks'] });
       toast.success(isEdit ? 'Program berhasil diperbarui' : 'Program kerja berhasil dibuat');
       onSuccess();
     },
@@ -913,32 +949,141 @@ const { data: riskRes } = useQuery({
               </div>
             </section>
 
-            {form.jenis_program === 'PKPT' && (
-              <section className="border-t border-slate-100 pt-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Risiko Terkait</h3>
-                  {form.risk_ids.length > 0 && (
-                    <span className="text-xs font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-full">{form.risk_ids.length} risiko dipilih</span>
+            {/* ── Dasar Pengawasan ─────────────────────────────── */}
+            <section className="border-t border-slate-100 pt-5">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Dasar Pengawasan</h3>
+
+              {/* ── Arahan Surat Direksi / Komisaris ── */}
+              <div className="mb-5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                  <span className="text-xs font-semibold text-slate-700">Arahan Surat Direksi / Komisaris</span>
+                  {form.ceo_area_ids.length > 0 && (
+                    <span className="ml-auto text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      {form.ceo_area_ids.length} dipilih
+                    </span>
                   )}
                 </div>
-                
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input value={riskSearch} onChange={(e) => setRiskSearch(e.target.value)} placeholder="Cari risk code atau deskripsi..." className="input pl-8 text-xs py-2 w-full" />
-                </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                {/* Selected chips */}
+                {form.ceo_area_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {form.ceo_area_ids.map((id) => {
+                      const area = allCeoAreas.find((a) => a.id === id);
+                      if (!area) return null;
+                      const isK = area.target_tipe === 'Komisaris';
+                      return (
+                        <span key={id} className={`inline-flex items-center gap-1 text-[11px] border rounded-full pl-2 pr-1 py-0.5 font-medium ${isK ? 'bg-violet-50 border-violet-200 text-violet-700' : 'bg-indigo-50 border-indigo-200 text-indigo-700'}`}>
+                          {area.parameter}
+                          <button type="button" onClick={() => toggleCeoArea(id)} className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ml-0.5 ${isK ? 'bg-violet-200 hover:bg-violet-300 text-violet-700' : 'bg-indigo-200 hover:bg-indigo-300 text-indigo-700'}`}>
+                            <X className="w-2 h-2" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {allCeoAreas.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-3 border border-dashed border-slate-200 rounded-xl">
+                    Belum ada arahan surat Direksi/Komisaris untuk tahun {tahun}.
+                  </p>
+                ) : (
+                  <>
+                    <div className="relative mb-1.5">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input value={ceoAreaSearch} onChange={(e) => setCeoAreaSearch(e.target.value)} placeholder="Cari area pengawasan..." className="input pl-8 text-xs py-1.5 w-full" />
+                    </div>
+                    <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
+                      {filteredCeoAreas.length === 0 ? (
+                        <p className="px-4 py-5 text-xs text-slate-400 text-center">Tidak ada area yang cocok.</p>
+                      ) : (
+                        filteredCeoAreas.map((area) => {
+                          const checked = form.ceo_area_ids.includes(area.id!);
+                          const isK = area.target_tipe === 'Komisaris';
+                          return (
+                            <label key={area.id} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 cursor-pointer transition-colors border ${
+                              checked
+                                ? (isK ? 'bg-violet-100 border-violet-200' : 'bg-indigo-100 border-indigo-200')
+                                : (isK ? 'bg-violet-50 border-violet-100 hover:bg-violet-100' : 'bg-indigo-50 border-indigo-100 hover:bg-indigo-100')
+                            }`}>
+                              <input type="checkbox" checked={checked} onChange={() => toggleCeoArea(area.id!)} className={`rounded flex-shrink-0 ${isK ? 'text-violet-600' : 'text-indigo-600'}`} />
+                              <FileText className={`w-3.5 h-3.5 flex-shrink-0 ${isK ? 'text-violet-400' : 'text-indigo-400'}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-slate-800 truncate">{area.parameter}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{area.judul_surat}</p>
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isK ? 'bg-violet-100 text-violet-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                  {area.target_tipe}
+                                </span>
+                                {!isK && area.target_unit && (
+                                  <span className="text-[9px] text-slate-400 font-medium">{area.target_unit}</span>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ── Risiko RCSA ── */}
+              {form.jenis_program === 'PKPT' && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-slate-700">Risiko RCSA (Top 20)</span>
+                    {form.risk_ids.length > 0 && (
+                      <span className="ml-auto text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                        {form.risk_ids.length} dipilih
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selected risk chips */}
+                  {form.risk_ids.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {form.risk_ids.map((id) => {
+                        const risk = allRisks.find((r) => r.id === id);
+                        if (!risk) return null;
+                        return (
+                          <span key={id} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border border-slate-200 text-slate-700 rounded-full pl-2 pr-1 py-0.5 font-mono font-semibold">
+                            {risk.id_risiko}
+                            <button type="button" onClick={() => toggleRisk(id)} className="w-3.5 h-3.5 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center ml-0.5">
+                              <X className="w-2 h-2" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="relative mb-1.5">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input value={riskSearch} onChange={(e) => setRiskSearch(e.target.value)} placeholder="Cari risk code atau nama risiko..." className="input pl-8 text-xs py-1.5 w-full" />
+                  </div>
+                  <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
                     {filteredRisks.length === 0 ? (
-                      <p className="px-4 py-6 text-xs text-slate-400 text-center">Tidak ada risiko yang cocok.</p>
+                      <p className="px-4 py-5 text-xs text-slate-400 text-center">Tidak ada Top 20 risiko level Ekstrim s/d Menengah Tinggi.</p>
                     ) : (
                       filteredRisks.map((risk) => {
                         const checked = form.risk_ids.includes(risk.id);
+                        const lvl = risk.level_inherent;
+                        const bl = lvl === 'E' ? 'border-l-red-500' : lvl === 'T' ? 'border-l-orange-400' : lvl === 'MT' ? 'border-l-amber-400' : lvl === 'M' ? 'border-l-yellow-400' : 'border-l-slate-300';
+                        const lvlCls = lvl === 'E' ? 'bg-red-50 text-red-700' : lvl === 'T' ? 'bg-orange-50 text-orange-700' : lvl === 'MT' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600';
                         return (
-                          <label key={risk.id} className={`flex items-start gap-3 px-4 py-2.5 cursor-pointer transition-colors ${checked ? 'bg-primary-50' : 'hover:bg-slate-50'}`}>
-                            <input type="checkbox" checked={checked} onChange={() => toggleRisk(risk.id)} className="rounded text-primary-600 flex-shrink-0 mt-0.5" />
+                          <label key={risk.id} className={`flex items-start gap-2.5 cursor-pointer rounded-lg border border-l-[3px] ${bl} px-3 py-2 transition-colors ${checked ? 'bg-slate-100 border-slate-300' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleRisk(risk.id)} className="rounded text-slate-600 flex-shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs text-slate-600 line-clamp-2">{risk.nama_risiko}</p>
+                              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                <span className="font-mono text-[11px] font-bold text-slate-700">{risk.id_risiko}</span>
+                                {lvl && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lvlCls}`}>{lvl} · {risk.skor_inherent}</span>}
+                              </div>
+                              <p className="text-xs text-slate-700 line-clamp-2 leading-snug">{risk.nama_risiko}</p>
+                              {risk.divisi && <p className="text-[10px] text-slate-400 mt-0.5">{risk.divisi}</p>}
                             </div>
                           </label>
                         );
@@ -946,8 +1091,8 @@ const { data: riskRes } = useQuery({
                     )}
                   </div>
                 </div>
-              </section>
-            )}
+              )}
+            </section>
           </div>
 
           <div className="px-4 sm:px-6 py-4 border-t border-slate-100 flex-shrink-0">

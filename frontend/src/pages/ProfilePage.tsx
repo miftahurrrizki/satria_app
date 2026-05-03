@@ -179,6 +179,36 @@ function IdentitasTab() {
   );
 }
 
+// ── Password strength checker (mirror backend validation) ─────
+const PASSWORD_MIN = 12;
+
+interface StrengthResult {
+  score:    number; // 0-4
+  label:    string;
+  color:    string;
+  checks: {
+    length:   boolean;
+    upper:    boolean;
+    lower:    boolean;
+    number:   boolean;
+    special:  boolean;
+  };
+}
+
+function checkPasswordStrength(pw: string): StrengthResult {
+  const checks = {
+    length:  pw.length >= PASSWORD_MIN,
+    upper:   /[A-Z]/.test(pw),
+    lower:   /[a-z]/.test(pw),
+    number:  /[0-9]/.test(pw),
+    special: /[!@#$%^&*()\-_=+\[\]{};':",.<>/?\\|`~]/.test(pw),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  const labels = ['', 'Sangat Lemah', 'Lemah', 'Cukup', 'Kuat', 'Sangat Kuat'];
+  const colors = ['', 'text-red-500', 'text-orange-500', 'text-yellow-600', 'text-blue-600', 'text-green-600'];
+  return { score, label: labels[score] ?? '', color: colors[score] ?? '', checks };
+}
+
 // ── Tab: Ubah Password ────────────────────────────────────────
 function UbahPasswordTab() {
   const { user } = useAuthStore();
@@ -186,22 +216,39 @@ function UbahPasswordTab() {
   const [show, setShow]  = useState({ old: false, new: false, confirm: false });
   const [done, setDone]  = useState(false);
 
+  const strength = checkPasswordStrength(form.new);
+  const mismatch = form.confirm.length > 0 && form.new !== form.confirm;
+  const isValid  = form.old.length >= 1 && strength.score === 5 && form.new === form.confirm;
+
   const mutation = useMutation({
     mutationFn: () => authApi.changePassword(form.old, form.new),
-    onSuccess: () => { setDone(true); setForm({ old: '', new: '', confirm: '' }); toast.success('Password berhasil diubah!'); },
+    onSuccess: () => {
+      setDone(true);
+      setForm({ old: '', new: '', confirm: '' });
+      toast.success('Password berhasil diubah!');
+    },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Gagal mengubah password.';
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Gagal mengubah password.';
       toast.error(msg);
     },
   });
 
-  const isValid = form.old.length >= 1 && form.new.length >= 6 && form.new === form.confirm;
-  const mismatch = form.confirm.length > 0 && form.new !== form.confirm;
-  const inp = 'w-full px-3 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 pr-10 shadow-sm bg-white';
+  const inp = (hasError = false) =>
+    `w-full px-3 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 shadow-sm bg-white transition-colors ${
+      hasError
+        ? 'border-red-300 focus:ring-red-400'
+        : 'border-slate-200 focus:ring-primary-500'
+    }`;
 
   function ShowToggle({ field }: { field: 'old' | 'new' | 'confirm' }) {
     return (
-      <button type="button" onClick={() => setShow((s) => ({ ...s, [field]: !s[field] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+      <button
+        type="button"
+        onClick={() => setShow((s) => ({ ...s, [field]: !s[field] }))}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        aria-label={show[field] ? 'Sembunyikan password' : 'Tampilkan password'}
+      >
         {show[field] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
       </button>
     );
@@ -215,9 +262,12 @@ function UbahPasswordTab() {
         </div>
         <div>
           <h3 className="text-lg font-bold text-slate-800 mb-1">Password Berhasil Diubah</h3>
-          <p className="text-sm text-slate-500">Gunakan password baru kamu saat login berikutnya.</p>
+          <p className="text-sm text-slate-500">Gunakan password baru Anda saat login berikutnya.</p>
         </div>
-        <button onClick={() => setDone(false)} className="px-5 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition-colors font-medium">
+        <button
+          onClick={() => setDone(false)}
+          className="px-5 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition-colors font-medium"
+        >
           Ubah Lagi
         </button>
       </div>
@@ -230,7 +280,7 @@ function UbahPasswordTab() {
       {user && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-6">
           <p className="text-xs text-blue-700">
-            Password default pola:{' '}
+            Password default:{' '}
             <code className="bg-blue-100 px-1.5 py-0.5 rounded font-mono font-bold">
               {user.nik?.slice(-3)}_{user.nama?.split(/\s+/).pop()?.toLowerCase()}
             </code>{' '}
@@ -242,42 +292,119 @@ function UbahPasswordTab() {
       <div className="space-y-4 max-w-md">
         {/* Password Lama */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Password Saat Ini <span className="text-red-500">*</span></label>
+          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
+            Password Saat Ini <span className="text-red-500">*</span>
+          </label>
           <div className="relative">
-            <input type={show.old ? 'text' : 'password'} value={form.old} onChange={(e) => setForm((f) => ({ ...f, old: e.target.value }))} placeholder="Masukkan password saat ini" className={inp} />
+            <input
+              type={show.old ? 'text' : 'password'}
+              value={form.old}
+              onChange={(e) => setForm((f) => ({ ...f, old: e.target.value }))}
+              placeholder="Masukkan password saat ini"
+              className={inp()}
+              autoComplete="current-password"
+            />
             <ShowToggle field="old" />
           </div>
         </div>
 
-        {/* Password Baru */}
+        {/* Password Baru + Strength Meter */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Password Baru <span className="text-red-500">*</span></label>
+          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
+            Password Baru <span className="text-red-500">*</span>
+          </label>
           <div className="relative">
-            <input type={show.new ? 'text' : 'password'} value={form.new} onChange={(e) => setForm((f) => ({ ...f, new: e.target.value }))} placeholder="Minimal 6 karakter" className={inp} />
+            <input
+              type={show.new ? 'text' : 'password'}
+              value={form.new}
+              onChange={(e) => setForm((f) => ({ ...f, new: e.target.value }))}
+              placeholder={`Minimal ${PASSWORD_MIN} karakter`}
+              className={inp()}
+              autoComplete="new-password"
+            />
             <ShowToggle field="new" />
           </div>
-          {form.new.length > 0 && form.new.length < 6 && (
-            <p className="text-[11px] font-medium text-amber-600 mt-1.5">Minimal 6 karakter</p>
+
+          {/* Strength bar */}
+          {form.new.length > 0 && (
+            <div className="mt-2 space-y-2">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      i <= strength.score
+                        ? strength.score <= 1 ? 'bg-red-400'
+                          : strength.score <= 2 ? 'bg-orange-400'
+                          : strength.score <= 3 ? 'bg-yellow-400'
+                          : strength.score <= 4 ? 'bg-blue-400'
+                          : 'bg-green-500'
+                        : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className={`text-[11px] font-semibold ${strength.color}`}>{strength.label}</p>
+
+              {/* Checklist syarat */}
+              <ul className="space-y-0.5" aria-label="Syarat password">
+                {[
+                  { key: 'length',  label: `Minimal ${PASSWORD_MIN} karakter` },
+                  { key: 'upper',   label: 'Huruf kapital (A-Z)' },
+                  { key: 'lower',   label: 'Huruf kecil (a-z)' },
+                  { key: 'number',  label: 'Angka (0-9)' },
+                  { key: 'special', label: 'Karakter spesial (!@#$%...)' },
+                ].map(({ key, label }) => {
+                  const ok = strength.checks[key as keyof typeof strength.checks];
+                  return (
+                    <li key={key} className={`flex items-center gap-1.5 text-[11px] ${ok ? 'text-green-600' : 'text-slate-400'}`}>
+                      <Check className={`w-3 h-3 ${ok ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" />
+                      {label}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
 
         {/* Konfirmasi */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Konfirmasi Password Baru <span className="text-red-500">*</span></label>
+          <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
+            Konfirmasi Password Baru <span className="text-red-500">*</span>
+          </label>
           <div className="relative">
-            <input type={show.confirm ? 'text' : 'password'} value={form.confirm} onChange={(e) => setForm((f) => ({ ...f, confirm: e.target.value }))} placeholder="Ulangi password baru" className={`${inp} ${mismatch ? 'border-red-300 focus:ring-red-400' : ''}`} />
+            <input
+              type={show.confirm ? 'text' : 'password'}
+              value={form.confirm}
+              onChange={(e) => setForm((f) => ({ ...f, confirm: e.target.value }))}
+              placeholder="Ulangi password baru"
+              className={inp(mismatch)}
+              autoComplete="new-password"
+              aria-describedby="confirm-hint"
+            />
             <ShowToggle field="confirm" />
           </div>
-          {mismatch && <p className="text-[11px] font-medium text-red-500 mt-1.5">Password tidak cocok</p>}
-          {!mismatch && form.confirm.length >= 6 && form.new === form.confirm && (
-            <p className="text-[11px] font-medium text-green-600 mt-1.5 flex items-center gap-1"><Check className="w-3 h-3" /> Password cocok</p>
-          )}
+          <p id="confirm-hint" className={`text-[11px] font-medium mt-1.5 ${
+            mismatch
+              ? 'text-red-500'
+              : !mismatch && form.confirm.length >= PASSWORD_MIN && form.new === form.confirm
+                ? 'text-green-600'
+                : 'text-transparent'
+          }`}>
+            {mismatch
+              ? 'Password tidak cocok'
+              : !mismatch && form.confirm.length >= PASSWORD_MIN && form.new === form.confirm
+                ? '✓ Password cocok'
+                : '—'}
+          </p>
         </div>
 
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || !isValid}
-          className="w-full py-3 bg-primary-600 text-white rounded-xl text-[13px] font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors mt-2"
+          className="w-full py-3 bg-primary-600 text-white rounded-xl text-[13px] font-bold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-2"
+          aria-disabled={mutation.isPending || !isValid}
         >
           {mutation.isPending ? 'Menyimpan...' : 'Simpan Password Baru'}
         </button>

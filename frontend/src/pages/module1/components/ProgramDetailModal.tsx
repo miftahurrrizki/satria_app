@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import {
   X, Pencil, Trash2, CheckCircle2, Users, CalendarDays, Clock,
-  AlertCircle, Loader2, ShieldCheck, Building2,
+  AlertCircle, Loader2, ShieldCheck, Building2, FileText, AlertTriangle,
 } from 'lucide-react';
 import { annualPlansApi, settingsApi } from '../../../services/api';
 import { AnnualAuditPlan, AnnualAuditPlanDetail, RiskLevelKode } from '../../../types';
@@ -300,24 +300,75 @@ export default function ProgramDetailModal({ programId, onClose, onEdit, onFinal
                   </div>
                 )}
 
-                {/* Risiko Terkait */}
-                {plan.risks && plan.risks.length > 0 && (
-                  <div className="border-t border-slate-100 pt-4">
-                    <p className="section-label mb-3">Risiko Terkait ({plan.risks.length})</p>
-                    <div className="space-y-2">
-                      {plan.risks.map((risk) => (
-                        <div key={risk.id} className="flex items-start gap-3 px-3 py-2 bg-slate-50 rounded-lg">
-                          <ShieldCheck className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              {risk.id_risiko && <span className="font-mono text-xs font-bold text-primary-600">{risk.id_risiko}</span>}
-                              {risk.level_inherent && <span className={`badge ${LEVEL_BADGE[risk.level_inherent as RiskLevelKode] ?? 'bg-slate-100 text-slate-600'}`}>{risk.level_inherent}</span>}
-                            </div>
-                            <p className="text-xs text-slate-600 line-clamp-2">{risk.nama_risiko}</p>
-                          </div>
+                {/* Dasar Pengawasan */}
+                {((plan.ceo_areas && plan.ceo_areas.length > 0) || (plan.risks && plan.risks.length > 0)) && (
+                  <div className="border-t border-slate-100 pt-4 space-y-4">
+                    <p className="section-label">Dasar Pengawasan</p>
+
+                    {/* Arahan Surat */}
+                    {plan.ceo_areas && plan.ceo_areas.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                          <span className="text-xs font-semibold text-slate-700">Arahan Surat Direksi / Komisaris</span>
+                          <span className="ml-auto text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                            {plan.ceo_areas.length} arahan
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <div className="space-y-1.5">
+                          {plan.ceo_areas.map((area) => {
+                            const isDireksi = area.target_tipe !== 'Komisaris';
+                            return (
+                              <div key={area.id} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 border ${isDireksi ? 'bg-indigo-50 border-indigo-100' : 'bg-violet-50 border-violet-100'}`}>
+                                <FileText className={`w-3.5 h-3.5 flex-shrink-0 ${isDireksi ? 'text-indigo-500' : 'text-violet-500'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-800 truncate">{area.parameter}</p>
+                                  <p className="text-[10px] text-slate-500 truncate">{area.judul_surat}{area.nomor_surat ? ` · ${area.nomor_surat}` : ''}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isDireksi ? 'bg-indigo-100 text-indigo-700' : 'bg-violet-100 text-violet-700'}`}>
+                                    {area.target_tipe}
+                                  </span>
+                                  {isDireksi && area.target_unit && (
+                                    <span className="text-[9px] text-slate-400 font-medium">{area.target_unit}</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Risiko RCSA */}
+                    {plan.risks && plan.risks.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="text-xs font-semibold text-slate-700">Risiko RCSA</span>
+                          <span className="ml-auto text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                            {plan.risks.length} risiko
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {plan.risks.map((risk) => {
+                            const lvl = risk.level_inherent as RiskLevelKode | undefined;
+                            const bl = lvl === 'E' ? 'border-l-red-500' : lvl === 'T' ? 'border-l-orange-400' : lvl === 'MT' ? 'border-l-amber-400' : lvl === 'M' ? 'border-l-yellow-400' : 'border-l-slate-300';
+                            const lvlCls = lvl ? (LEVEL_BADGE[lvl] ?? 'bg-slate-100 text-slate-600') : '';
+                            return (
+                              <div key={risk.id} className={`border border-slate-200 border-l-[3px] ${bl} rounded-lg px-3 py-2 bg-white`}>
+                                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                  <span className="font-mono text-xs font-bold text-slate-700">{risk.id_risiko}</span>
+                                  {lvl && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lvlCls}`}>{lvl} · {risk.skor_inherent}</span>}
+                                </div>
+                                <p className="text-xs text-slate-700 line-clamp-2 leading-snug">{risk.nama_risiko}</p>
+                                {risk.divisi && <p className="text-[10px] text-slate-400 mt-0.5">{risk.divisi}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </>

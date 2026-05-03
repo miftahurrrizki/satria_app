@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
-import { generateToken } from '../middleware/auth.middleware';
+import { generateToken, setSessionCookie, clearSessionCookie } from '../middleware/auth.middleware';
 import {
   verifyPassword,
   hashPassword,
@@ -8,6 +8,7 @@ import {
   generateDefaultPassword,
 } from '../utils/password';
 import logger from '../utils/logger';
+import { validatePasswordStrength } from '../utils/validation';
 
 // ── POST /api/auth/login ──────────────────────────────────────
 export async function login(req: Request, res: Response) {
@@ -77,18 +78,20 @@ export async function login(req: Request, res: Response) {
       departemen_id: user.departemen_id,
     });
 
-    // Catat activity log
+    // Set session sebagai httpOnly cookie (tidak bisa diakses oleh JS — aman dari XSS)
+    setSessionCookie(res, token);
+
+    // Catat activity log (jangan log NIK di message — hanya user_id)
     await query(
       `INSERT INTO auth.activity_log (user_id, action, modul, ip_address)
        VALUES ($1, 'LOGIN', 'auth', $2)`,
       [user.id, req.ip],
     ).catch(() => null);
 
-    logger.info(`[AUTH] User login successful: ${user.nik} (${user.id})`, { user_id: user.id, nik: user.nik });
+    logger.info('[AUTH] User login successful', { user_id: user.id });
     return res.json({
       success: true,
       data: {
-        token,
         user: {
           id:           user.id,
           nik:          user.nik,
@@ -104,7 +107,8 @@ export async function login(req: Request, res: Response) {
       },
     });
   } catch (err) {
-    logger.error(`[AUTH] Login failed: ${(err as Error).message}`, { error: err, login_id: req.body.nik || req.body.username });
+    // Jangan log input user di production (privasi)
+    logger.error(`[AUTH] Login error: ${(err as Error).message}`, { error: err });
     return res.status(500).json({ success: false, message: 'Terjadi kesalahan server.' });
   }
 }
@@ -149,6 +153,12 @@ export async function me(req: Request, res: Response) {
   }
 }
 
+// ── POST /api/auth/logout ─────────────────────────────────────
+export function logout(_req: Request, res: Response) {
+  clearSessionCookie(res);
+  return res.json({ success: true, message: 'Berhasil keluar.' });
+}
+
 // ── PUT /api/auth/change-password ─────────────────────────────
 export async function changePassword(req: Request, res: Response) {
   try {
@@ -156,8 +166,11 @@ export async function changePassword(req: Request, res: Response) {
     if (!old_password || !new_password) {
       return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
     }
-    if (new_password.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
+
+    // Validasi kekuatan password baru
+    const strength = validatePasswordStrength(new_password);
+    if (!strength.valid) {
+      return res.status(400).json({ success: false, message: strength.message });
     }
 
     const result = await query<{ password_hash: string }>(
@@ -230,13 +243,14 @@ export async function resetToDefault(req: Request, res: Response) {
       [req.user!.id, user_id],
     ).catch(() => null);
 
-    logger.info(`[AUTH] Password reset for user: ${target.nik} (${user_id}) by ${req.user!.id}`, { user_id, admin_id: req.user!.id, target_nik: target.nik });
+    logger.info('[AUTH] Password reset executed', { target_user_id: user_id, admin_id: req.user!.id });
+    // TIDAK mengembalikan default_password di response — admin perlu memberi tahu user secara langsung.
+    // Pattern password default sudah publik (hint cukup), jadi exposure tidak diperlukan.
     return res.json({
       success: true,
       message: 'Password berhasil direset ke default.',
       data: {
-        default_password: defaultPw,
-        hint: `Pola: 3 digit terakhir NIP + '_' + nama belakang lowercase`,
+        hint: `Pola password default: 3 digit terakhir NIK + '_' + nama belakang (huruf kecil). Contoh: NIK ...199, nama belakang "Hakim" → 199_hakim`,
       },
     });
   } catch (err) {

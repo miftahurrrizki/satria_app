@@ -5,32 +5,36 @@ import {
   WorkloadResponse, SimulateWorkloadResponse,
   PendingEvaluationPlan, EvaluationSummaryRow, EvaluationDetailRow, SubmitEvaluationPayload,
   Direktorat, Divisi, Departemen, SasaranKorporat,
+  AuditProgram, FaseItem, Rincian, Prosedur, Risiko, Tujuan, ProgramDetail,
 } from '../types';
 
-const api = axios.create({ baseURL: '/api' });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('satria_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+/**
+ * Axios instance — menggunakan httpOnly cookie untuk autentikasi.
+ *
+ * withCredentials: true  → browser otomatis kirim cookie satria_session
+ *                           ke setiap request (tidak perlu simpan token di JS).
+ * Tidak ada Authorization header — token tidak bisa dibaca JS (aman dari XSS).
+ */
+const api = axios.create({
+  baseURL:         '/api',
+  withCredentials: true,   // kirim httpOnly cookie otomatis
 });
+
+// Request interceptor — tidak perlu inject token manual (sudah via cookie)
+api.interceptors.request.use((config) => config);
 
 api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      // Jangan auto-redirect jika:
-      //  (a) request-nya sendiri adalah endpoint login (biarkan handler lokal
-      //      menampilkan pesan error inline tanpa reload form), atau
-      //  (b) user memang sudah berada di halaman /login (cegah loop).
-      const reqUrl = (err.config?.url ?? '') as string;
-      const isLoginCall = reqUrl.includes('/auth/login');
+      const reqUrl     = (err.config?.url ?? '') as string;
+      const isAuthCall = reqUrl.includes('/auth/login') || reqUrl.includes('/auth/logout');
       const onLoginPage = typeof window !== 'undefined'
         && window.location.pathname.startsWith('/login');
 
-      if (!isLoginCall && !onLoginPage) {
-        localStorage.removeItem('satria_token');
-        localStorage.removeItem('satria_user');
+      if (!isAuthCall && !onLoginPage) {
+        // Bersihkan sesi lokal (cookie dibersihkan server-side via /auth/logout)
+        sessionStorage.removeItem('satria_user');
         window.location.href = '/login';
       }
     }
@@ -42,8 +46,12 @@ export default api;
 
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
+  /** Login — response hanya berisi data user (token dikirim via httpOnly cookie). */
   login:          (nik: string, password: string) =>
-    api.post<ApiResponse<{ token: string; user: unknown }>>('/auth/login', { nik, password }),
+    api.post<ApiResponse<{ user: unknown }>>('/auth/login', { nik, password }),
+  /** Logout — server clear cookie. */
+  logout:         () => api.post<ApiResponse<null>>('/auth/logout'),
+  /** Verify session / ambil data user terkini. */
   me:             () => api.get<ApiResponse<unknown>>('/auth/me'),
   changePassword: (old_password: string, new_password: string) =>
     api.put<ApiResponse<null>>('/auth/change-password', { old_password, new_password }),
@@ -85,6 +93,16 @@ export const risksApi = {
     api.delete<ApiResponse<null>>(`/risks/${id}`),
   downloadTemplate: () =>
     api.get('/risks/template', { responseType: 'blob' }),
+  importExcel: (file: File, tahun?: number) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (tahun) fd.append('tahun', String(tahun));
+    return api.post<ApiResponse<{ imported: number; skipped: number; errors: { row: number; message: string }[] }>>(
+      '/risks/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
+  reset: (tahun: number) =>
+    api.delete<ApiResponse<{ deleted: number; refsCleared: number }>>('/risks/reset', { params: { tahun } }),
 };
 
 // ── Annual Plans (Modul 1) ────────────────────────────────────
@@ -110,6 +128,7 @@ export interface CreatePlanPayload {
   anggota_ids?: string[];
   team_alokasi?: Record<string, number>;  // user_id -> hari_alokasi
   risk_ids?: string[];
+  ceo_area_ids?: string[];
 }
 
 export const annualPlansApi = {
@@ -127,6 +146,16 @@ export const annualPlansApi = {
     api.patch<ApiResponse<null>>(`/annual-plans/${id}/finalize`),
   markCompleted: (id: string) =>
     api.patch<ApiResponse<null>>(`/annual-plans/${id}/mark-completed`),
+  getTrash: (tahun?: number) =>
+    api.get<ApiResponse<{ id: string; judul_program: string; jenis_program: string; kategori_program: string; status_pkpt: string; deleted_at: string }[]>>(
+      '/annual-plans/trash', { params: tahun ? { tahun } : {} },
+    ),
+  restore: (id: string) =>
+    api.patch<ApiResponse<null>>(`/annual-plans/${id}/restore`),
+  purge: (id: string) =>
+    api.delete<ApiResponse<null>>(`/annual-plans/${id}/purge`),
+  purgeAll: (tahun?: number) =>
+    api.delete<ApiResponse<{ count: number }>>('/annual-plans/trash/purge-all', { params: tahun ? { tahun } : {} }),
 };
 
 // ── Auditors ─────────────────────────────────────────────────
@@ -277,6 +306,8 @@ export interface CeoLetterArea {
   target_tipe: CeoLetterTargetTipe;
   target_unit: CeoLetterTargetUnit;
   urutan: number;
+  programs_count?: number;
+  programs?: string[];
 }
 
 export interface CeoLetterDocument extends CeoLetterHeader {
@@ -289,11 +320,19 @@ export interface CeoLetterResponse {
   letters?: CeoLetterDocument[];
 }
 
+export interface CeoAreaWithLetter extends CeoLetterArea {
+  judul_surat: string;
+  nomor_surat?: string | null;
+  tahun: number;
+}
+
 export const ceoLetterApi = {
   get: (tahun?: number) =>
     api.get<ApiResponse<CeoLetterResponse> & { meta?: { tahun: number; exists: boolean } }>(
       '/ceo-letter', { params: { tahun } },
     ),
+  getAreas: (tahun?: number) =>
+    api.get<ApiResponse<CeoAreaWithLetter[]>>('/ceo-letter/areas', { params: { tahun } }),
   /**
    * Upsert + (optional) attach PDF.
    * `payload.file` opsional. `payload.areas` di-stringify JSON ke FormData.
@@ -467,3 +506,58 @@ export interface CreateUserPayload {
   divisi_id?: string | null;
   departemen_id?: string | null;
 }
+
+// ── Module 2: Perencanaan Pengawasan Individual ───────────────
+export const penugasanApi = {
+  // Programs
+  listPrograms: (tahun?: number) =>
+    api.get<ApiResponse<AuditProgram[]>>('/penugasan', { params: { tahun } }),
+  createProgram: (data: { annual_plan_id: string; auditee?: string }) =>
+    api.post<ApiResponse<{ id: string }>>('/penugasan', data),
+  getProgram: (id: string) =>
+    api.get<ApiResponse<ProgramDetail>>(`/penugasan/${id}`),
+  updateProgram: (id: string, data: { auditee?: string; status?: string }) =>
+    api.patch<ApiResponse<null>>(`/penugasan/${id}`, data),
+  deleteProgram: (id: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/${id}`),
+
+  // Fase items
+  createFaseItem: (programId: string, data: Partial<FaseItem> & { pic_ids?: string[] }) =>
+    api.post<ApiResponse<FaseItem>>(`/penugasan/${programId}/fase-items`, data),
+  updateFaseItem: (itemId: string, data: Partial<FaseItem> & { pic_ids?: string[] }) =>
+    api.patch<ApiResponse<FaseItem>>(`/penugasan/fase-items/${itemId}`, data),
+  deleteFaseItem: (itemId: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/fase-items/${itemId}`),
+
+  // Tujuan
+  createTujuan: (programId: string, data: { title: string }) =>
+    api.post<ApiResponse<Tujuan>>(`/penugasan/${programId}/tujuan`, data),
+  updateTujuan: (id: string, data: { title?: string; label?: string }) =>
+    api.patch<ApiResponse<Tujuan>>(`/penugasan/tujuan/${id}`, data),
+  deleteTujuan: (id: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/tujuan/${id}`),
+
+  // Risiko
+  createRisiko: (tujuanId: string, data: { title: string; risk_ref_id?: string; tanggal_jatuh_tempo?: string }) =>
+    api.post<ApiResponse<Risiko>>(`/penugasan/tujuan/${tujuanId}/risiko`, data),
+  updateRisiko: (id: string, data: Partial<{ title: string; label: string; risk_ref_id: string | null; tanggal_jatuh_tempo: string }>) =>
+    api.patch<ApiResponse<Risiko>>(`/penugasan/risiko/${id}`, data),
+  deleteRisiko: (id: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/risiko/${id}`),
+
+  // Prosedur
+  createProsedur: (risikoId: string, data: { title: string; tanggal_jatuh_tempo?: string }) =>
+    api.post<ApiResponse<Prosedur>>(`/penugasan/risiko/${risikoId}/prosedur`, data),
+  updateProsedur: (id: string, data: Partial<{ title: string; label: string; tanggal_jatuh_tempo: string }>) =>
+    api.patch<ApiResponse<Prosedur>>(`/penugasan/prosedur/${id}`, data),
+  deleteProsedur: (id: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/prosedur/${id}`),
+
+  // Rincian
+  createRincian: (prosedurId: string, data: Partial<Rincian> & { pic_ids?: string[] }) =>
+    api.post<ApiResponse<Rincian>>(`/penugasan/prosedur/${prosedurId}/rincian`, data),
+  updateRincian: (id: string, data: Partial<Rincian> & { pic_ids?: string[] }) =>
+    api.patch<ApiResponse<Rincian>>(`/penugasan/rincian/${id}`, data),
+  deleteRincian: (id: string) =>
+    api.delete<ApiResponse<null>>(`/penugasan/rincian/${id}`),
+};

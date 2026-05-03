@@ -11,11 +11,11 @@ interface Props {
 }
 
 const LEVEL_DEFAULTS: Record<RiskLevelKode, { bg: string; text: string; border: string; label: string }> = {
-  E:  { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300',     label: 'Extreme' },
+  E:  { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300',     label: 'Ekstrim' },
   T:  { bg: 'bg-orange-100',  text: 'text-orange-700',  border: 'border-orange-300',  label: 'Tinggi' },
-  MT: { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300',   label: 'Medium Tinggi' },
-  M:  { bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-yellow-300',  label: 'Medium' },
-  RM: { bg: 'bg-lime-100',    text: 'text-lime-700',    border: 'border-lime-300',    label: 'Rendah Medium' },
+  MT: { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300',   label: 'Menengah Tinggi' },
+  M:  { bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-yellow-300',  label: 'Menengah' },
+  RM: { bg: 'bg-lime-100',    text: 'text-lime-700',    border: 'border-lime-300',    label: 'Rendah Menengah' },
   R:  { bg: 'bg-green-100',   text: 'text-green-700',   border: 'border-green-300',   label: 'Rendah' },
 };
 
@@ -91,11 +91,16 @@ export default function RiskDetailModal({ risk, onClose, onEdit, onDelete }: Pro
               </div>
             </Section>
 
-            {(risk.sasaran_korporat || risk.sasaran_bidang || risk.hos_kategori_nama || risk.sasaran_strategis_nama) && (
+            {(risk.sasaran_korporat || risk.sasaran_bidang || risk.hos_kategori_nama || risk.sasaran_strategis_nama || risk.sasaran_strategis_parent_nama) && (
               <Section icon={<Target className="w-3.5 h-3.5" />} title="Sasaran & House of Strategy">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {risk.hos_kategori_nama && <InfoRow label="Perspektif HoS" value={risk.hos_kategori_nama} />}
-                  {risk.sasaran_strategis_nama && <InfoRow label="Sasaran Strategis" value={risk.sasaran_strategis_nama} />}
+                  {risk.sasaran_strategis_parent_nama && (
+                    <InfoRow label="Sasaran Strategis" value={risk.sasaran_strategis_parent_nama} />
+                  )}
+                  {risk.sasaran_strategis_nama && (
+                    <InfoRow label="Sub Sasaran Strategis" value={risk.sasaran_strategis_nama} />
+                  )}
                   {risk.sasaran_korporat && <InfoRow label="Sasaran Korporat" value={risk.sasaran_korporat} />}
                   {risk.sasaran_bidang && <InfoRow label="Sasaran Bidang" value={risk.sasaran_bidang} />}
                 </div>
@@ -178,6 +183,30 @@ export default function RiskDetailModal({ risk, onClose, onEdit, onDelete }: Pro
                 </div>
               </Section>
             )}
+
+            {/* Program Terkait */}
+            {(() => {
+              const programs = risk.programs;
+              if (!programs || programs.length === 0) return null;
+              const programList = programs as Array<{ id: string; judul_program: string; status_pkpt: string }>;
+              return (
+                <div className="px-6 py-4 border-t border-slate-100">
+                  <p className="section-label mb-2">Program Kerja Terkait ({programList.length})</p>
+                  <div className="space-y-1.5">
+                    {programList.map((p, i) => (
+                      <div key={p.id ?? i} className="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 rounded-lg">
+                        <p className="text-xs text-slate-700 font-medium line-clamp-1 flex-1">{p.judul_program}</p>
+                        <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          p.status_pkpt === 'Closed' ? 'bg-slate-200 text-slate-600' :
+                          p.status_pkpt === 'On Progress' ? 'bg-blue-100 text-blue-700' :
+                          'bg-amber-50 text-amber-700'
+                        }`}>{p.status_pkpt}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="px-6 py-3 border-t border-slate-50 flex items-center gap-4 flex-wrap">
               {risk.imported_by_nama && (

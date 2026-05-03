@@ -7,36 +7,102 @@ import routes from './routes';
 import logger from './utils/logger';
 import morganMiddleware from './middleware/morgan.middleware';
 import { scanDeadlineNotifications } from './utils/notifications';
+import { apiRateLimiter } from './middleware/rate-limit.middleware';
 
 dotenv.config();
+
+// ── Validate required env vars ────────────────────────────────
+const REQUIRED_ENV = ['JWT_SECRET'];
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`[STARTUP] Missing required env vars: ${missing.join(', ')}`);
+  process.exit(1);
+}
+if (process.env.JWT_SECRET === 'satria_secret_key_change_in_production') {
+  console.error('[STARTUP] JWT_SECRET menggunakan nilai default! Ganti sebelum deploy production.');
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+if (process.env.NODE_ENV === 'production') {
+  const PROD_REQUIRED = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'CORS_ORIGIN'];
+  const prodMissing = PROD_REQUIRED.filter((k) => !process.env[k]);
+  if (prodMissing.length > 0) {
+    console.error(`[STARTUP] Missing production env vars: ${prodMissing.join(', ')}`);
+    process.exit(1);
+  }
+}
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
-// ── Middleware ────────────────────────────────────────────────
+// ── Global error handlers (prevent process crash) ─────────────
+process.on('uncaughtException', (err) => {
+  logger.error('[PROCESS] Uncaught exception:', { message: err.message, stack: err.stack });
+  // Beri waktu logger flush sebelum exit
+  setTimeout(() => process.exit(1), 1000);
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('[PROCESS] Unhandled rejection:', { reason });
+});
+
+// ── CORS ─────────────────────────────────────────────────────
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',').map((o) => o.trim());
+
 app.use(cors({
-  origin:      process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, cb) => {
+    // Null origin = request dari server-to-server (Vite proxy, curl, Postman, dll).
+    // Di production tetap ditolak untuk mencegah cross-site attack.
+    // Di development diizinkan agar Vite dev proxy bisa meneruskan request.
+    if (!origin) {
+      if (process.env.NODE_ENV === 'production') {
+        return cb(new Error('CORS: null origin ditolak.'));
+      }
+      return cb(null, true);
+    }
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} tidak diizinkan.`));
+  },
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+
+// ── Body parsers (limit ketat untuk cegah DoS) ───────────────
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── HTTP Request Logging ──────────────────────────────────────
 app.use(morganMiddleware);
 
-// ── Static uploads (PDF CEO Letter, dll) ──────────────────────
+// ── General API rate limiter ──────────────────────────────────
+app.use('/api', apiRateLimiter);
+
+// ── Static uploads (PDF CEO Letter, dll) ─────────────────────
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
-// ── Routes ────────────────────────────────────────────────────
+// ── Routes ───────────────────────────────────────────────────
 app.use('/api', routes);
 
-// ── Health check ──────────────────────────────────────────────
+// ── Health check ─────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'SATRIA API', time: new Date() }));
 
-// ── Error handler ─────────────────────────────────────────────
+// ── 404 handler ───────────────────────────────────────────────
+app.use((_req, res) => {
+  res.status(404).json({ success: false, message: 'Endpoint tidak ditemukan.' });
+});
+
+// ── Centralized error handler ─────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // CORS error: kembalikan 403, bukan 500 (bukan server error)
+  if (err.message?.startsWith('CORS:')) {
+    return res.status(403).json({ success: false, message: err.message });
+  }
   logger.error(`[Unhandled Error] ${err.message}`, { stack: err.stack });
-  res.status(500).json({ success: false, message: err.message || 'Internal server error.' });
+  // Jangan ekspos detail error ke client di production
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Terjadi kesalahan server.'
+    : err.message;
+  return res.status(500).json({ success: false, message });
 });
 
 // ── Start ─────────────────────────────────────────────────────
@@ -51,7 +117,6 @@ pool.connect()
 
     // ── Scheduler: scan deadline notifications ───────────────────
     // Jalankan segera 10 detik setelah startup, lalu ulangi setiap 6 jam.
-    // Dedup built-in di scanDeadlineNotifications mencegah spam.
     const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
     setTimeout(() => {
       scanDeadlineNotifications()

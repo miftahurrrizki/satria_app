@@ -4,11 +4,11 @@ import { RiskData, RiskLevelKode } from '../../../types';
 import { RiskLevelBadge } from './RiskTab';
 
 const LEVEL_OPTIONS: { value: RiskLevelKode; label: string }[] = [
-  { value: 'E',  label: 'E — Extreme' },
+  { value: 'E',  label: 'E — Ekstrim' },
   { value: 'T',  label: 'T — Tinggi' },
-  { value: 'MT', label: 'MT — Medium Tinggi' },
-  { value: 'M',  label: 'M — Medium' },
-  { value: 'RM', label: 'RM — Rendah Medium' },
+  { value: 'MT', label: 'MT — Menengah Tinggi' },
+  { value: 'M',  label: 'M — Menengah' },
+  { value: 'RM', label: 'RM — Rendah Menengah' },
   { value: 'R',  label: 'R — Rendah' },
 ];
 
