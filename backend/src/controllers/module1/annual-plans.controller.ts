@@ -495,7 +495,7 @@ export async function updateAnnualPlan(req: Request, res: Response) {
            kategori_program   = COALESCE($2,  kategori_program),
            judul_program      = COALESCE($3,  judul_program),
            status_program     = COALESCE($4,  status_program),
-           auditee            = COALESCE($5,  auditee),
+           auditee            = $5,
            deskripsi          = COALESCE($6,  deskripsi),
            tanggal_mulai      = COALESCE($7,  tanggal_mulai),
            tanggal_selesai    = COALESCE($8,  tanggal_selesai),
@@ -509,7 +509,7 @@ export async function updateAnnualPlan(req: Request, res: Response) {
          WHERE id = $15 AND deleted_at IS NULL`,
         [
           jenis_program, kategori_program, judul_program,
-          status_program, auditee, deskripsi,
+          status_program, auditee ?? null, deskripsi,
           tanggal_mulai, tanggal_selesai, estimasi_hari,
           anggaran ?? null, realisasi_anggaran ?? null,
           kategori_anggaran ?? null, man_days_estimasi ?? null,

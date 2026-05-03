@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   X, Loader2, Users, CalendarDays, AlertTriangle,
@@ -83,6 +83,8 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
   const [auditeeOpen,  setAuditeeOpen]  = useState(false);
   const [auditeeSearch, setAuditeeSearch] = useState('');
   const [selectedAuditeeDeptIds, setSelectedAuditeeDeptIds] = useState<string[]>([]);
+  // Flag: sudah di-populate dari detailRes sekali → tidak re-run ketika user sengaja hapus semua pilihan
+  const auditeeInitialized = useRef(false);
 
   // 1. Query Detail Program
   const { data: detailRes, isError: isDetailError } = useQuery({
@@ -110,12 +112,16 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
         .map((t) => t.hari_alokasi)
         .filter((v): v is number => v != null);
 
-      setForm({
+      // Pakai functional updater agar `prev` tersedia.
+      // Field `auditee` dipertahankan dari state sebelumnya jika user sudah pernah
+      // berinteraksi dengan picker (auditeeInitialized.current = true).
+      // Ini mencegah background refetch detailRes mereset pilihan auditee user.
+      setForm((prev) => ({
         jenis_program:        (detailRes.jenis_program as JenisProgram) || 'PKPT',
         judul_program:        detailRes.judul_program || '',
         kategori_program:     (detailRes.kategori_program as KategoriProgram) || 'Assurance',
         status_program:       (detailRes.status_program as StatusProgram) || 'Mandatory',
-        auditee:              detailRes.auditee || '',
+        auditee:              auditeeInitialized.current ? prev.auditee : (detailRes.auditee || ''),
         deskripsi:            detailRes.deskripsi || '',
         tanggal_mulai:        detailRes.tanggal_mulai?.slice(0, 10) || '',
         tanggal_selesai:      detailRes.tanggal_selesai?.slice(0, 10) || '',
@@ -127,7 +133,7 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
         ceo_area_ids:         ceoAreaIds,
         anggaran:             detailRes.anggaran != null ? String(detailRes.anggaran) : '',
         kategori_anggaran:    detailRes.kategori_anggaran ?? '',
-      });
+      }));
     }
   }, [detailRes]);
 
@@ -247,17 +253,24 @@ const { data: riskRes } = useQuery({
   }, [auditeeSearch, departemenList, divisiById]);
 
   useEffect(() => {
-    if (!detailRes?.auditee || departemenList.length === 0 || selectedAuditeeDeptIds.length > 0) return;
+    // Hanya populate sekali saat data edit pertama kali tersedia.
+    // Jika user sudah sengaja hapus semua pilihan, auditeeInitialized.current = true
+    // sehingga effect ini tidak berjalan lagi dan pilihan kosong tetap dihormati.
+    if (auditeeInitialized.current) return;
+    if (!detailRes?.auditee || departemenList.length === 0) return;
 
     const auditeeText = detailRes.auditee.toLowerCase();
     const matchedDeptIds = departemenList
       .filter((dept) => auditeeText.includes(dept.nama.toLowerCase()))
       .map((dept) => dept.id);
 
+    // Tandai sudah diinisialisasi terlepas ada match atau tidak
+    auditeeInitialized.current = true;
+
     if (matchedDeptIds.length > 0) {
       setSelectedAuditeeDeptIds(matchedDeptIds);
     }
-  }, [departemenList, detailRes?.auditee, selectedAuditeeDeptIds.length]);
+  }, [departemenList, detailRes?.auditee]);
 
   const estimasi_hari = useMemo(
     () => calcEstimasi(form.tanggal_mulai, form.tanggal_selesai),
@@ -432,7 +445,7 @@ const { data: riskRes } = useQuery({
         kategori_program:     form.kategori_program,
         judul_program:        form.judul_program,
         status_program:       form.status_program,
-        auditee:              form.auditee || undefined,
+        auditee:              form.auditee || null,
         deskripsi:            form.deskripsi || undefined,
         tanggal_mulai:        form.tanggal_mulai,
         tanggal_selesai:      form.tanggal_selesai,

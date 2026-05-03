@@ -403,16 +403,22 @@ export interface PicUser {
 }
 
 export interface AuditProgram {
-  id: string;
+  /** penugasan.audit_programs.id — NULL jika program Modul 2 belum dibuat */
+  id: string | null;
   annual_plan_id: string;
   annual_plan_judul: string;
   tahun: number;
   auditee: string | null;
-  status: ProgramStatus;
+  /** Null jika program Modul 2 belum dibuat */
+  status: ProgramStatus | null;
   created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // Aggregates (from list endpoint)
+  created_at: string | null;
+  updated_at: string | null;
+  // From JOIN with pkpt.annual_audit_plans
+  jenis_program?: JenisProgram;
+  tanggal_mulai?: string;
+  tanggal_selesai?: string;
+  // Aggregates (from list endpoint; 0 if program not created yet)
   total_est_hari?: number;
   total_man_days?: number;
   unique_pics?: number;

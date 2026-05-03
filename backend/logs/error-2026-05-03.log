@@ -1,2 +1,49 @@
 {"level":"error","message":"[PROCESS] Uncaught exception: listen EADDRINUSE: address already in use :::5000","stack":"Error: listen EADDRINUSE: address already in use :::5000\n    at Server.setupListenHandle [as _listen2] (node:net:1940:16)\n    at listenInCluster (node:net:1997:12)\n    at Server.listen (node:net:2102:7)\n    at app.listen (C:\\Users\\ASUS\\Documents\\Transjakarta\\satria_app\\backend\\node_modules\\express\\lib\\application.js:635:24)\n    at C:\\Users\\ASUS\\Documents\\Transjakarta\\satria_app\\backend\\src\\app.ts:113:9\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","timestamp":"2026-05-03 05:50:55:5055"}
 {"level":"error","message":"[PROCESS] Uncaught exception: listen EADDRINUSE: address already in use :::5000","stack":"Error: listen EADDRINUSE: address already in use :::5000\n    at Server.setupListenHandle [as _listen2] (node:net:1940:16)\n    at listenInCluster (node:net:1997:12)\n    at Server.listen (node:net:2102:7)\n    at app.listen (C:\\Users\\ASUS\\Documents\\Transjakarta\\satria_app\\backend\\node_modules\\express\\lib\\application.js:635:24)\n    at C:\\Users\\ASUS\\Documents\\Transjakarta\\satria_app\\backend\\src\\app.ts:113:9\n    at processTicksAndRejections (node:internal/process/task_queues:103:5)","timestamp":"2026-05-03 05:58:38:5838"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:16:55:1655"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:16:56:1656"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:03:173"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:04:174"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:04:174"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:05:175"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:10:1710"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:11:1711"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:30:1730"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:32:1732"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:57:1757"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:17:58:1758"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:18:08:188"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:18:09:189"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:18:56:1856"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:18:57:1857"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:18:58:1858"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:07:197"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:08:198"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:12:1912"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:13:1913"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:14:1914"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:29:1929"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:19:35:1935"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:11:2011"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:12:2012"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:13:2013"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:37:2037"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:38:2038"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:49:2049"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:50:2050"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:53:2053"}
+{"level":"error","message":"[penugasan] listPrograms error: column aap.tahun does not exist","timestamp":"2026-05-03 20:20:54:2054"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:11:2111"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:12:2112"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:22:2122"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:23:2123"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:42:2142"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:21:43:2143"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:13:2213"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:14:2214"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:23:2223"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:24:2224"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:39:2239"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:40:2240"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:22:54:2254"}
+{"level":"error","message":"[penugasan] listPrograms error: cannot cast type date to integer","timestamp":"2026-05-03 20:23:05:235"}

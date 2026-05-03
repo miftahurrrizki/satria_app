@@ -46,49 +46,65 @@ function accessFilter(
 export async function listPrograms(req: Request, res: Response): Promise<void> {
   try {
     const tahun = req.query.tahun ? Number(req.query.tahun) : new Date().getFullYear();
-    const { clause: aclClause, params: aclParams } = accessFilter(req, 'ap', 2);
 
+    // Access filter: check membership in pkpt.annual_plan_team (keyed on aap.id)
+    const aclClause = hasFullAccess(req)
+      ? ''
+      : `AND EXISTS (
+          SELECT 1 FROM pkpt.annual_plan_team apt2
+          WHERE apt2.annual_plan_id = aap.id
+            AND apt2.user_id = $2
+        )`;
+    const aclParams = hasFullAccess(req) ? [] : [req.user!.id];
+
+    // Primary source: pkpt.annual_audit_plans (semua program dari Modul 1)
+    // LEFT JOIN penugasan.audit_programs → null jika belum ada program Modul 2
     const sql = `
       SELECT
-        ap.id,
-        ap.annual_plan_id,
+        ap.id,                                        -- NULL jika belum ada program Modul 2
+        aap.id                    AS annual_plan_id,
         aap.judul_program         AS annual_plan_judul,
+        aap.jenis_program,
+        aap.tanggal_mulai,
+        aap.tanggal_selesai,
         aap.man_days_estimasi,
-        ap.tahun,
-        ap.auditee,
+        EXTRACT(YEAR FROM aap.tahun_perencanaan)::integer AS tahun,
+        COALESCE(ap.auditee, aap.auditee) AS auditee,
         ap.status,
         ap.created_by,
         ap.created_at,
         ap.updated_at,
-        -- Aggregate: est_hari from fase_items + rincian
-        COALESCE((
-          SELECT SUM(fi.est_hari) FROM penugasan.fase_items fi
-          WHERE fi.program_id = ap.id
-        ), 0) +
-        COALESCE((
-          SELECT SUM(r.est_hari)
-          FROM penugasan.rincian r
-          JOIN penugasan.prosedur p    ON p.id = r.prosedur_id
-          JOIN penugasan.risiko  ri   ON ri.id = p.risiko_id
-          JOIN penugasan.tujuan  t    ON t.id  = ri.tujuan_id
-          WHERE t.program_id = ap.id
-        ), 0) AS total_est_hari,
-        -- Aggregate: man_days from fase_items + rincian
-        COALESCE((
-          SELECT SUM(fi.man_days) FROM penugasan.fase_items fi
-          WHERE fi.program_id = ap.id
-        ), 0) +
-        COALESCE((
-          SELECT SUM(r.man_days)
-          FROM penugasan.rincian r
-          JOIN penugasan.prosedur p  ON p.id = r.prosedur_id
-          JOIN penugasan.risiko  ri  ON ri.id = p.risiko_id
-          JOIN penugasan.tujuan  t   ON t.id  = ri.tujuan_id
-          WHERE t.program_id = ap.id
-        ), 0) AS total_man_days,
-        -- Unique PICs across fase_items + rincian
-        (
-          SELECT COUNT(DISTINCT uid) FROM (
+        -- Aggregates hanya jika program Modul 2 sudah ada
+        CASE WHEN ap.id IS NULL THEN 0 ELSE
+          COALESCE((
+            SELECT SUM(fi.est_hari) FROM penugasan.fase_items fi
+            WHERE fi.program_id = ap.id
+          ), 0) +
+          COALESCE((
+            SELECT SUM(r.est_hari)
+            FROM penugasan.rincian r
+            JOIN penugasan.prosedur p  ON p.id = r.prosedur_id
+            JOIN penugasan.risiko  ri  ON ri.id = p.risiko_id
+            JOIN penugasan.tujuan  t   ON t.id  = ri.tujuan_id
+            WHERE t.program_id = ap.id
+          ), 0)
+        END AS total_est_hari,
+        CASE WHEN ap.id IS NULL THEN 0 ELSE
+          COALESCE((
+            SELECT SUM(fi.man_days) FROM penugasan.fase_items fi
+            WHERE fi.program_id = ap.id
+          ), 0) +
+          COALESCE((
+            SELECT SUM(r.man_days)
+            FROM penugasan.rincian r
+            JOIN penugasan.prosedur p  ON p.id = r.prosedur_id
+            JOIN penugasan.risiko  ri  ON ri.id = p.risiko_id
+            JOIN penugasan.tujuan  t   ON t.id  = ri.tujuan_id
+            WHERE t.program_id = ap.id
+          ), 0)
+        END AS total_man_days,
+        CASE WHEN ap.id IS NULL THEN 0 ELSE
+          (SELECT COUNT(DISTINCT uid) FROM (
             SELECT fip.user_id AS uid
             FROM penugasan.fase_item_pics fip
             JOIN penugasan.fase_items fi ON fi.id = fip.item_id
@@ -101,14 +117,16 @@ export async function listPrograms(req: Request, res: Response): Promise<void> {
             JOIN penugasan.risiko  ri    ON ri.id = p.risiko_id
             JOIN penugasan.tujuan  t     ON t.id  = ri.tujuan_id
             WHERE t.program_id = ap.id
-          ) pics
-        ) AS unique_pics
-      FROM penugasan.audit_programs ap
-      JOIN pkpt.annual_audit_plans aap ON aap.id = ap.annual_plan_id
-      WHERE ap.deleted_at IS NULL
-        AND ap.tahun = $1
+          ) pics)
+        END AS unique_pics
+      FROM pkpt.annual_audit_plans aap
+      LEFT JOIN penugasan.audit_programs ap
+        ON ap.annual_plan_id = aap.id
+        AND ap.deleted_at IS NULL
+      WHERE aap.deleted_at IS NULL
+        AND EXTRACT(YEAR FROM aap.tahun_perencanaan)::integer = $1
         ${aclClause}
-      ORDER BY ap.created_at DESC
+      ORDER BY aap.created_at DESC
     `;
 
     const result = await query(sql, [tahun, ...aclParams]);

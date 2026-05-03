@@ -4,7 +4,7 @@ import {
   Plus, CheckCircle2, Clock,
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Users, CalendarDays, X, AlertTriangle, Hourglass, PlayCircle, Flag, Search,
-  Briefcase, TrendingDown, Trash2, RotateCcw,
+  Briefcase, TrendingDown, Trash2, RotateCcw, Building2,
 } from 'lucide-react';
 import { annualPlansApi, kalenderKerjaApi, settingsApi } from '../../../services/api';
 import { AnnualAuditPlan, JenisProgram, StatusPKPT } from '../../../types';
@@ -103,7 +103,7 @@ export default function ProgramTab({ tahun }: Props) {
   const [purgeAllConfirm, setPurgeAllConfirm] = useState(false);
   const [purgeTarget, setPurgeTarget] = useState<string | null>(null);
 
-  const LIMIT = 15;
+  const LIMIT = 10;
 
   const { data: kelompokRes } = useQuery({
     queryKey: ['kelompok-penugasan'],
@@ -453,7 +453,7 @@ export default function ProgramTab({ tahun }: Props) {
       <div className="card overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-semibold text-slate-700 text-sm">
-            Data Program Kerja <span className="text-slate-400 font-normal">— {LIMIT} baris/halaman · klik baris untuk detail</span>
+            Data Program Kerja <span className="text-slate-400 font-normal">— klik baris untuk detail</span>
           </h3>
           <span className="text-xs text-slate-400">
             {total > 0 ? `${Math.min((page - 1) * LIMIT + 1, total)}–${Math.min(page * LIMIT, total)} dari ${total} program` : 'Belum ada program'}
@@ -592,19 +592,57 @@ export default function ProgramTab({ tahun }: Props) {
           </table>
         </div>
 
-        {pages > 1 && (
-          <div className="px-5 py-3 flex items-center justify-between border-t border-slate-100">
-            <span className="text-xs text-slate-400">Halaman {page} dari {pages}</span>
-            <div className="flex gap-1">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="btn-secondary px-2.5 py-1.5 text-xs disabled:opacity-40"><ChevronLeft className="w-3.5 h-3.5" /></button>
-              {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
-                const pg = pages <= 5 ? i + 1 : Math.max(1, page - 2) + i;
-                if (pg > pages) return null;
-                return (
-                  <button key={pg} onClick={() => setPage(pg)} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${page === pg ? 'bg-primary-600 text-white' : 'btn-secondary'}`}>{pg}</button>
-                );
-              })}
-              <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="btn-secondary px-2.5 py-1.5 text-xs disabled:opacity-40"><ChevronRight className="w-3.5 h-3.5" /></button>
+        {total > 0 && (
+          <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-between gap-3">
+            <span className="text-xs text-slate-400">
+              Halaman {page} dari {pages}
+            </span>
+            <div className="flex items-center gap-1">
+              {/* Prev */}
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Page numbers with smart ellipsis */}
+              {Array.from({ length: pages }, (_, i) => i + 1)
+                .filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 1)
+                .reduce<(number | '...')[]>((acc, n, i, arr) => {
+                  if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push('...');
+                  acc.push(n);
+                  return acc;
+                }, [])
+                .map((item, i) =>
+                  item === '...' ? (
+                    <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-xs text-slate-400">
+                      ···
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => setPage(item as number)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
+                        page === item
+                          ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+
+              {/* Next */}
+              <button
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                disabled={page >= pages}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         )}
