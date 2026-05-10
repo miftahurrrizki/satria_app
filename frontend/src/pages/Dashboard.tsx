@@ -6,9 +6,9 @@ import {
   ClipboardList, CheckCircle2, AlertCircle, Clock,
   Sparkles, Shield, Layers, LayoutTemplate,
   FileText, PieChart, CheckSquare,
-  LayoutDashboard,
+  LayoutDashboard, Server, ServerOff, Loader2, RefreshCw,
 } from 'lucide-react';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, module3Api } from '../services/api';
 import { useAuthStore } from '../store/auth.store';
 import { UserRole } from '../types';
 
@@ -36,9 +36,9 @@ const MODULES = [
     icon:      Shield,
     title:     'Pelaksanaan Audit & Kertas Kerja',
     subtitle:  'Mengelola proses audit secara langsung di lapangan maupun off-site tanpa menggunakan dokumen terpisah (Excel/Word).',
-    path:      '#',
-    roles:     null,
-    isActive:  false,
+    path:      '/pelaksanaan',
+    roles:     ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] as UserRole[],
+    isActive:  true,
   },
   {
     id:        'pelaporan',
@@ -77,6 +77,51 @@ const MODULES = [
     isActive:  true,
   },
 ];
+
+function NasStatusRow() {
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['nas-health'],
+    queryFn: () => module3Api.nasHealth().then((r) => r.data.data),
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
+  });
+  const connected = data?.connected ?? false;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2">
+        <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Memeriksa NAS…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 group" title={data?.message ?? `NAS path: ${data?.basePath ?? '-'}`}>
+      <span className="relative flex h-2.5 w-2.5">
+        {connected ? (
+          <>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+          </>
+        ) : (
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+        )}
+      </span>
+      <span className={`text-[11px] font-semibold uppercase tracking-wide ${connected ? 'text-slate-600' : 'text-red-600'}`}>
+        {connected ? <><Server className="inline w-3 h-3 mr-1 -mt-0.5" />NAS Terhubung</> : <><ServerOff className="inline w-3 h-3 mr-1 -mt-0.5" />NAS Terputus</>}
+      </span>
+      <button
+        onClick={() => refetch()}
+        className="ml-auto p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+        title="Cek ulang"
+      >
+        <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
+      </button>
+    </div>
+  );
+}
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -173,14 +218,17 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-slate-200/60 flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
-                  Sistem Berjalan Normal
-                </span>
+              <div className="pt-4 border-t border-slate-200/60 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                    Sistem Berjalan Normal
+                  </span>
+                </div>
+                <NasStatusRow />
               </div>
             </div>
           </div>

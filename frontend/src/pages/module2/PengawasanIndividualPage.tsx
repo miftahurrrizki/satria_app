@@ -13,19 +13,21 @@
  *   '-> Pelaporan (section)
  */
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   Calendar, ChevronDown, Plus, Edit2, Trash2,
   AlertTriangle, ClipboardList, Target, Users, Clock, TrendingUp, ArrowLeft,
-  X, Check, Loader2, Search, FileText, BookOpen, Info, MapPin, Filter, Building2,
+  X, Check, Loader2, Search, FileText, BookOpen, Info, Flag, Home,
 } from 'lucide-react';
 
-import { penugasanApi, annualPlansApi } from '../../services/api';
+import { penugasanApi, annualPlansApi, settingsApi } from '../../services/api';
 import {
   AuditProgram, ProgramDetail, FaseItem, Tujuan, Risiko, Prosedur, Rincian,
-  ItemStatus, ProgramStatus, PicUser, AnnualAuditPlan,
+  ItemStatus, PicUser, AnnualAuditPlan,
 } from '../../types';
+import { parseLocalDate, toInputDate } from '../../utils/dateUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -33,24 +35,12 @@ import {
 
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 1 + i);
 
-const STATUS_BADGE: Record<ProgramStatus, string> = {
-  draft:   'bg-slate-100 text-slate-600 border border-slate-200',
-  aktif:   'bg-primary-50 text-primary-700 border border-primary-200',
-  selesai: 'bg-green-50 text-green-700 border border-green-200',
-};
-const STATUS_LABEL: Record<ProgramStatus, string> = {
-  draft: 'Draft', aktif: 'Aktif', selesai: 'Selesai',
-};
 
 const ITEM_STATUS_OPTIONS: { value: ItemStatus; label: string; cls: string; dot: string }[] = [
   { value: 'tidak_dimulai', label: 'Belum Mulai',  cls: 'bg-slate-100 text-slate-600 border border-slate-200',  dot: 'bg-slate-400' },
   { value: 'dalam_proses',  label: 'Dalam Proses', cls: 'bg-amber-50 text-amber-700 border border-amber-200',   dot: 'bg-amber-400' },
   { value: 'selesai',       label: 'Selesai',      cls: 'bg-green-50 text-green-700 border border-green-200',   dot: 'bg-green-500' },
 ];
-
-function statusOpt(s: ItemStatus) {
-  return ITEM_STATUS_OPTIONS.find((o) => o.value === s) ?? ITEM_STATUS_OPTIONS[0];
-}
 
 function initials(name: string) {
   return name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
@@ -61,13 +51,27 @@ function fmt(n: number | null | undefined) {
 }
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—';
-  const parsed = new Date(d);
-  if (Number.isNaN(parsed.getTime())) return '—';
+  const parsed = parseLocalDate(d);
+  if (!parsed || Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 function sumField<T>(arr: T[], field: keyof T): number {
   return arr.reduce((acc, item) => acc + (Number(item[field]) || 0), 0);
 }
+function countAuditees(auditee: string | null | undefined): number {
+  if (!auditee?.trim()) return 0;
+  let total = 0;
+  for (const group of auditee.split('; ')) {
+    const colonIdx = group.indexOf(': ');
+    if (colonIdx === -1) { total += 1; }
+    else {
+      const deptPart = group.slice(colonIdx + 2).trim();
+      if (deptPart) total += deptPart.split(', ').length;
+    }
+  }
+  return total;
+}
+
 function uniquePics(pics: PicUser[][]) {
   const ids = new Set<string>();
   pics.flat().forEach((p) => ids.add(p.user_id));
@@ -350,7 +354,7 @@ interface NodeFormData {
   status?: ItemStatus;
   est_hari?: number;
   man_days?: number;
-  tanggal_jatuh_tempo?: string;
+  tanggal_jatuh_tempo?: string | null;  // null = hapus tanggal (clear)
   pic_ids?: string[];
 }
 
@@ -369,11 +373,11 @@ const KIND_LABEL: Record<NodeKind, string> = {
 
 // Field visibility per node kind
 const KIND_FIELDS: Record<NodeKind, { status: boolean; estMd: boolean; deadline: boolean; pic: boolean }> = {
-  fase:     { status: true,  estMd: true,  deadline: true,  pic: true  },
+  fase:     { status: false, estMd: true,  deadline: true,  pic: true  },
   tujuan:   { status: false, estMd: false, deadline: false, pic: false },
   risiko:   { status: false, estMd: false, deadline: true,  pic: false },
   prosedur: { status: false, estMd: false, deadline: true,  pic: false },
-  rincian:  { status: true,  estMd: true,  deadline: true,  pic: true  },
+  rincian:  { status: false, estMd: true,  deadline: true,  pic: true  },
 };
 
 const NodeEditModal: React.FC<{
@@ -384,14 +388,16 @@ const NodeEditModal: React.FC<{
   saving: boolean;
   onSave: (data: NodeFormData) => void;
   onClose: () => void;
+  /** Optional: tombol hapus muncul di footer kiri (mode edit). */
+  onDelete?: () => void;
   /** Date range dari program Modul 1 — membatasi pilihan Jatuh Tempo */
   minDate?: string;
   maxDate?: string;
-}> = ({ mode, kind, initial, teamPics, saving, onSave, onClose, minDate, maxDate }) => {
+}> = ({ mode, kind, initial, teamPics, saving, onSave, onClose, onDelete, minDate, maxDate }) => {
   const [title, setTitle]   = useState(initial?.title ?? '');
   const [status, setStatus] = useState<ItemStatus>(initial?.status ?? 'tidak_dimulai');
   const [est, setEst]       = useState(initial?.est_hari != null ? String(initial.est_hari) : '');
-  const [deadline, setDeadline] = useState(initial?.tanggal_jatuh_tempo ?? '');
+  const [deadline, setDeadline] = useState(toInputDate(initial?.tanggal_jatuh_tempo));
   const [picIds, setPicIds] = useState<string[]>(initial?.pics?.map((p) => p.user_id) ?? []);
 
   const fields = KIND_FIELDS[kind];
@@ -407,13 +413,13 @@ const NodeEditModal: React.FC<{
       // Man-Days = Est Hari × Jumlah PIC (otomatis, konsisten dengan Modul 1)
       payload.man_days = estNum != null ? estNum * picIds.length : undefined;
     }
-    if (fields.deadline) payload.tanggal_jatuh_tempo = deadline || undefined;
+    if (fields.deadline) payload.tanggal_jatuh_tempo = deadline || null; // '' → null agar backend SET NULL
     if (fields.pic)      payload.pic_ids             = picIds;
     onSave(payload);
   };
 
   const Icon = isEdit ? Edit2 : Plus;
-  const iconColor = isEdit ? 'bg-amber-100 text-amber-600' : 'bg-primary-100 text-primary-600';
+  const iconColor = 'bg-primary-100 text-primary-600';
 
   return (
     <ModalShell
@@ -424,6 +430,15 @@ const NodeEditModal: React.FC<{
       iconColor={iconColor}
       footer={
         <>
+          {isEdit && onDelete && (
+            <button
+              onClick={onDelete}
+              className="btn-danger mr-auto"
+              title="Hapus data ini"
+            >
+              <Trash2 className="w-4 h-4" /> Hapus
+            </button>
+          )}
           <button onClick={onClose} className="btn-secondary">Batal</button>
           <button onClick={handleSubmit} disabled={!title.trim() || saving} className="btn-primary">
             {saving ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
@@ -433,9 +448,12 @@ const NodeEditModal: React.FC<{
       }
     >
       <div className="space-y-4">
+
+        {/* Nama / Uraian */}
         <div>
           <label className="section-label block mb-1.5">
-            {kind === 'rincian' ? 'Nama Langkah' : kind === 'tujuan' ? 'Tujuan Audit' : `Nama ${KIND_LABEL[kind]}`} <span className="text-red-500">*</span>
+            {kind === 'rincian' ? 'Nama Langkah' : kind === 'tujuan' ? 'Tujuan Audit' : `Nama ${KIND_LABEL[kind]}`}
+            <span className="text-red-500 ml-0.5">*</span>
           </label>
           <input
             autoFocus
@@ -446,64 +464,77 @@ const NodeEditModal: React.FC<{
           />
         </div>
 
-        {(fields.status || fields.pic) && (
-          <div className="grid grid-cols-2 gap-3">
-            {fields.status && (
-              <div>
-                <label className="section-label block mb-1.5">Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value as ItemStatus)} className="select-input">
-                  {ITEM_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-            )}
-            {fields.pic && (
-              <div>
-                <label className="section-label block mb-1.5">PIC</label>
-                <PicCheckboxDropdown teamPics={teamPics} value={picIds} onChange={setPicIds} />
-              </div>
-            )}
+        {/* Status — pill buttons (hanya rincian) */}
+        {fields.status && (
+          <div>
+            <label className="section-label block mb-1.5">Status</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {ITEM_STATUS_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setStatus(o.value)}
+                  className={[
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                    status === o.value
+                      ? o.cls + ' ring-2 ring-offset-1 ring-primary-300'
+                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${o.dot}`} />{o.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {(fields.estMd || fields.deadline) && (
-          <div className={`grid gap-3 ${fields.estMd && fields.deadline ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {fields.estMd && (
-              <div>
-                <label className="section-label block mb-1.5">Hari Penugasan</label>
-                <input
-                  type="number" min="0" step="0.5" value={est}
-                  onChange={(e) => setEst(e.target.value)}
-                  placeholder="0" className="input"
-                />
-                {fields.pic && est && picIds.length > 0 && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    Man-Days otomatis: <span className="font-semibold text-primary-600">
-                      {(Number(est) * picIds.length).toLocaleString('id-ID', { maximumFractionDigits: 1 })}
-                    </span>
-                    {' '}({picIds.length} PIC × {est} hari)
-                  </p>
-                )}
-              </div>
-            )}
-            {fields.deadline && (
-              <div>
-                <label className="section-label block mb-1.5">
-                  Jatuh Tempo
-                  {minDate && maxDate && (
-                    <span className="ml-2 normal-case font-normal text-slate-400">
-                      ({fmtDate(minDate)} – {fmtDate(maxDate)})
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  min={minDate ?? undefined}
-                  max={maxDate ?? undefined}
-                  className="input"
-                />
-              </div>
+        {/* PIC */}
+        {fields.pic && (
+          <div>
+            <label className="section-label block mb-1.5">PIC</label>
+            <PicCheckboxDropdown teamPics={teamPics} value={picIds} onChange={setPicIds} />
+          </div>
+        )}
+
+        {/* Deadline (Tanggal Jatuh Tempo) */}
+        {fields.deadline && (
+          <div>
+            <label className="section-label block mb-1.5">
+              Deadline (Tanggal Jatuh Tempo)
+              {minDate && maxDate && (
+                <span className="ml-2 normal-case font-normal text-slate-400">
+                  — dalam rentang {fmtDate(minDate)} s/d {fmtDate(maxDate)}
+                </span>
+              )}
+            </label>
+            <input
+              type="date"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              min={minDate ?? undefined}
+              max={maxDate ?? undefined}
+              className="input"
+            />
+          </div>
+        )}
+
+        {/* Est. Hari */}
+        {fields.estMd && (
+          <div>
+            <label className="section-label block mb-1.5">Est. Hari Penugasan</label>
+            <input
+              type="number" min="0" step="0.5" value={est}
+              onChange={(e) => setEst(e.target.value)}
+              placeholder="0" className="input"
+            />
+            {fields.pic && est && picIds.length > 0 && (
+              <p className="text-xs text-slate-400 mt-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg">
+                Man-Days otomatis:{' '}
+                <span className="font-semibold text-primary-600">
+                  {(Number(est) * picIds.length).toLocaleString('id-ID', { maximumFractionDigits: 1 })}
+                </span>
+                {' '}({picIds.length} PIC × {est} hari)
+              </p>
             )}
           </div>
         )}
@@ -538,6 +569,7 @@ interface ItemRow extends BaseRow {
   data: FaseItem | Rincian;
   parentSection?: 'perencanaan' | 'pelaporan';
   parentProsedurId?: string;
+  sequenceNum: number;  // per-section for item, per-prosedur for rincian
 }
 interface TujuanRow extends BaseRow {
   rowKind: 'tujuan';
@@ -575,13 +607,16 @@ function buildRows(detail: ProgramDetail): AnyRow[] {
 
   // ── Perencanaan
   rows.push({ rowKind: 'section', section: 'perencanaan', depth: 0, key: 'sec-perencanaan', title: 'Perencanaan' });
+  let perCounter = 0;
   detail.perencanaan.forEach((it) => {
+    perCounter++;
     rows.push({
       rowKind: 'item', depth: 1, key: `item-p-${it.id}`,
       title: it.title, status: it.status,
       estHari: it.est_hari ?? null, manDays: it.man_days ?? null,
       pics: it.pics, deadline: it.tanggal_jatuh_tempo ?? null,
       data: it, parentSection: 'perencanaan',
+      sequenceNum: perCounter,
     });
   });
   rows.push({ rowKind: 'add', depth: 1, key: 'add-p', title: 'Tambah Kegiatan Perencanaan',
@@ -593,7 +628,7 @@ function buildRows(detail: ProgramDetail): AnyRow[] {
     const allTujuanRincian = t.risiko.flatMap((r) => r.prosedur.flatMap((p) => p.rincian));
     rows.push({
       rowKind: 'tujuan', depth: 1, key: `t-${t.id}`,
-      title: t.title, badge: { label: t.label, cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+      title: t.title, badge: { label: t.label, cls: 'bg-blue-100 text-blue-700 border border-blue-200' },
       data: t,
       totalEst: sumField(allTujuanRincian, 'est_hari'),
       totalMd:  sumField(allTujuanRincian, 'man_days'),
@@ -603,7 +638,7 @@ function buildRows(detail: ProgramDetail): AnyRow[] {
       const allRisikoRincian = r.prosedur.flatMap((p) => p.rincian);
       rows.push({
         rowKind: 'risiko', depth: 2, key: `r-${r.id}`,
-        title: r.title, badge: { label: r.label, cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
+        title: r.title, badge: { label: r.label, cls: 'bg-red-100 text-red-700 border border-red-200' },
         data: r, parentTujuanId: t.id,
         totalEst: sumField(allRisikoRincian, 'est_hari'),
         totalMd:  sumField(allRisikoRincian, 'man_days'),
@@ -612,19 +647,22 @@ function buildRows(detail: ProgramDetail): AnyRow[] {
       r.prosedur.forEach((p) => {
         rows.push({
           rowKind: 'prosedur', depth: 3, key: `p-${p.id}`,
-          title: p.title, badge: { label: p.label, cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+          title: p.title, badge: { label: p.label, cls: 'bg-yellow-100 text-yellow-700 border border-yellow-300' },
           data: p, parentRisikoId: r.id,
           totalEst: sumField(p.rincian, 'est_hari'),
           totalMd:  sumField(p.rincian, 'man_days'),
           deadline: p.tanggal_jatuh_tempo ?? null,
         });
+        let rinCounter = 0;
         p.rincian.forEach((rin) => {
+          rinCounter++;
           rows.push({
             rowKind: 'rincian', depth: 4, key: `rin-${rin.id}`,
             title: rin.title, status: rin.status,
             estHari: rin.est_hari ?? null, manDays: rin.man_days ?? null,
             pics: rin.pics, deadline: rin.tanggal_jatuh_tempo ?? null,
             data: rin, parentProsedurId: p.id,
+            sequenceNum: rinCounter,
           });
         });
         rows.push({ rowKind: 'add', depth: 4, key: `add-rin-${p.id}`,
@@ -641,13 +679,16 @@ function buildRows(detail: ProgramDetail): AnyRow[] {
 
   // ── Pelaporan
   rows.push({ rowKind: 'section', section: 'pelaporan', depth: 0, key: 'sec-pelaporan', title: 'Pelaporan' });
+  let pelCounter = 0;
   detail.pelaporan.forEach((it) => {
+    pelCounter++;
     rows.push({
       rowKind: 'item', depth: 1, key: `item-pl-${it.id}`,
       title: it.title, status: it.status,
       estHari: it.est_hari ?? null, manDays: it.man_days ?? null,
       pics: it.pics, deadline: it.tanggal_jatuh_tempo ?? null,
       data: it, parentSection: 'pelaporan',
+      sequenceNum: pelCounter,
     });
   });
   rows.push({ rowKind: 'add', depth: 1, key: 'add-pl', title: 'Tambah Kegiatan Pelaporan',
@@ -698,24 +739,20 @@ const UnifiedAuditTable: React.FC<{
   const [editTarget, setEditTarget]     = useState<EditTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [addTarget, setAddTarget]       = useState<AddTarget | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ItemStatus | ''>('');
   const [search, setSearch]             = useState('');
 
   const programId = detail.program.id!; // non-null: detail view only rendered for existing programs
   const allRows = useMemo(() => buildRows(detail), [detail]);
 
-  // Apply filter — keep section/add rows always; filter only data rows when search/status active
+  // Apply filter — keep section/add rows always; filter only item rows when search active
   const rows = useMemo(() => {
-    if (!search && !statusFilter) return allRows;
+    if (!search) return allRows;
     return allRows.filter((r) => {
       if (r.rowKind === 'section' || r.rowKind === 'add') return true;
       if (search && !r.title.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter && (r.rowKind === 'item' || r.rowKind === 'rincian')) {
-        if ((r as ItemRow).status !== statusFilter) return false;
-      }
       return true;
     });
-  }, [allRows, search, statusFilter]);
+  }, [allRows, search]);
 
   // ── Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['penugasan-detail', programId] });
@@ -816,14 +853,6 @@ const UnifiedAuditTable: React.FC<{
               className="input pl-9 py-1.5 text-xs w-48"
             />
           </div>
-          <div className="flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ItemStatus | '')}
-              className="select-input py-1.5 text-xs w-36">
-              <option value="">Semua Status</option>
-              {ITEM_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
         </div>
       </div>
 
@@ -831,18 +860,18 @@ const UnifiedAuditTable: React.FC<{
       <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50 flex items-center gap-6 flex-wrap">
         <span className="section-label">Keterangan:</span>
         <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <Target className="w-3.5 h-3.5 text-indigo-500" />
-          <span className="badge bg-indigo-100 text-indigo-700 border border-indigo-200">T</span>
+          <Flag className="w-3.5 h-3.5 text-blue-500" />
+          <span className="badge bg-blue-100 text-blue-700 border border-blue-200">T</span>
           Tujuan Audit
         </span>
         <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-          <span className="badge bg-amber-100 text-amber-700 border border-amber-200">R</span>
+          <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+          <span className="badge bg-red-100 text-red-700 border border-red-200">R</span>
           Risiko
         </span>
         <span className="flex items-center gap-1.5 text-xs text-slate-600">
-          <ClipboardList className="w-3.5 h-3.5 text-sky-500" />
-          <span className="badge bg-sky-100 text-sky-700 border border-sky-200">P</span>
+          <ClipboardList className="w-3.5 h-3.5 text-yellow-500" />
+          <span className="badge bg-yellow-100 text-yellow-700 border border-yellow-300">P</span>
           Prosedur
         </span>
         <span className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -853,34 +882,25 @@ const UnifiedAuditTable: React.FC<{
 
       {/* ── Table ── */}
       <div className="overflow-x-auto">
-        <table className="table-base min-w-[1080px]">
+        <table className="table-base min-w-[900px]">
           <thead className="table-head">
             <tr>
               <th className="px-5 py-3.5 w-24 text-center">Kode</th>
               <th className="px-5 py-3.5">Uraian Kegiatan</th>
-              <th className="px-5 py-3.5 w-36">Status</th>
               <th className="px-5 py-3.5 w-28 text-right">Hari Penugasan</th>
               <th className="px-5 py-3.5 w-52">PIC</th>
-              <th className="px-5 py-3.5 w-36">Jatuh Tempo</th>
-              <th className="px-5 py-3.5 w-24 text-center">Aksi</th>
+              <th className="px-5 py-3.5 w-36">Deadline</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
+                <td colSpan={5} className="px-5 py-16 text-center">
                   <p className="text-slate-400 text-sm">Tidak ada data yang cocok dengan filter.</p>
                 </td>
               </tr>
             ) : (
-              rows.map((row, idx) => {
-                // Row number: only for leaf nodes (item / rincian)
-                let rowNumber = 0;
-                if (row.rowKind === 'item' || row.rowKind === 'rincian') {
-                  for (let i = 0; i <= idx; i++) {
-                    if (rows[i].rowKind === 'item' || rows[i].rowKind === 'rincian') rowNumber++;
-                  }
-                }
+              rows.map((row) => {
 
                 // ── Section row ──────────────────────────────────────────────
                 if (row.rowKind === 'section') {
@@ -889,7 +909,7 @@ const UnifiedAuditTable: React.FC<{
                     : s.section === 'pelaksanaan' ? Target : FileText;
                   return (
                     <tr key={row.key} className="border-b-2 border-slate-200 bg-white">
-                      <td colSpan={7} className="px-5 py-3">
+                      <td colSpan={5} className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
                           <Icon className="w-4 h-4 text-slate-500" />
                           <span className="font-bold text-sm text-slate-700 uppercase tracking-wider">
@@ -907,7 +927,7 @@ const UnifiedAuditTable: React.FC<{
                   return (
                     <tr key={row.key} className="border-b border-slate-50 hover:bg-primary-50/30 transition-colors">
                       <td className="px-5 py-2"></td>
-                      <td colSpan={6} className="px-5 py-2">
+                      <td colSpan={5} className="px-5 py-2">
                         <button
                           onClick={() => setAddTarget(a.action)}
                           className="inline-flex items-center gap-2 text-xs font-semibold text-primary-600 hover:text-primary-800 transition-colors"
@@ -926,7 +946,6 @@ const UnifiedAuditTable: React.FC<{
                 const isLeaf = row.rowKind === 'item' || row.rowKind === 'rincian';
                 const isStructural = row.rowKind === 'tujuan' || row.rowKind === 'risiko' || row.rowKind === 'prosedur';
 
-                let statusCell:  React.ReactNode = <span className="text-slate-300">—</span>;
                 let hariCell:    React.ReactNode = <span className="text-slate-300">—</span>;
                 let picCell:     React.ReactNode = <span className="text-slate-300">—</span>;
                 let dlCell:      React.ReactNode = <span className="text-slate-300">—</span>;
@@ -937,7 +956,7 @@ const UnifiedAuditTable: React.FC<{
                   const r = row as TujuanRow;
                   kodeCell = (
                     <div className="flex items-center justify-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-indigo-400" />
+                      <Flag className="w-3.5 h-3.5 text-blue-500" />
                       <span className={`badge ${r.badge!.cls}`}>{r.badge!.label}</span>
                     </div>
                   );
@@ -948,7 +967,7 @@ const UnifiedAuditTable: React.FC<{
                   const r = row as RisikoRow;
                   kodeCell = (
                     <div className="flex items-center justify-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                       <span className={`badge ${r.badge!.cls}`}>{r.badge!.label}</span>
                     </div>
                   );
@@ -962,7 +981,7 @@ const UnifiedAuditTable: React.FC<{
                   const r = row as ProsedurRow;
                   kodeCell = (
                     <div className="flex items-center justify-center gap-1.5">
-                      <ClipboardList className="w-3.5 h-3.5 text-sky-400" />
+                      <ClipboardList className="w-3.5 h-3.5 text-yellow-500" />
                       <span className={`badge ${r.badge!.cls}`}>{r.badge!.label}</span>
                     </div>
                   );
@@ -973,23 +992,16 @@ const UnifiedAuditTable: React.FC<{
                     ? <span className="text-slate-600">{fmtDate(r.deadline)}</span>
                     : dlCell;
                 } else {
-                  // item / rincian — show row number badge
+                  // item / rincian — show per-prosedur sequence number
                   kodeCell = (
                     <span className="w-6 h-6 rounded border border-slate-200 bg-slate-50 text-slate-500 text-xs font-semibold flex items-center justify-center mx-auto">
-                      {rowNumber}
+                      {(row as ItemRow).sequenceNum}
                     </span>
                   );
                 }
 
                 if (isLeaf) {
                   const r = row as ItemRow;
-                  const opt = statusOpt(r.status);
-                  statusCell = (
-                    <span className={`badge ${opt.cls}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${opt.dot}`} />
-                      {opt.label}
-                    </span>
-                  );
                   hariCell = r.estHari != null
                     ? <span className="font-medium tabular-nums">{fmt(r.estHari)}</span>
                     : hariCell;
@@ -1004,7 +1016,17 @@ const UnifiedAuditTable: React.FC<{
                   : 'font-medium text-slate-700';
 
                 return (
-                  <tr key={row.key} className="border-b border-slate-100 hover:bg-slate-50/70 transition-colors group">
+                  <tr
+                    key={row.key}
+                    onClick={() => openEdit(
+                      row.rowKind === 'item'    ? 'fase'    :
+                      row.rowKind === 'rincian' ? 'rincian' :
+                      (row.rowKind as NodeKind),
+                      row,
+                    )}
+                    className="border-b border-slate-100 hover:bg-primary-50/40 transition-colors cursor-pointer"
+                    title="Klik untuk edit"
+                  >
                     <td className="px-5 py-3.5 text-center">{kodeCell}</td>
                     <td className="px-5 py-3.5">
                       <span className={`${titleCls} block`} style={{ paddingLeft: `${(row.depth - 1) * 1}rem` }}>
@@ -1012,38 +1034,9 @@ const UnifiedAuditTable: React.FC<{
                         {row.title}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5">{statusCell}</td>
                     <td className="px-5 py-3.5 text-right">{hariCell}</td>
                     <td className="px-5 py-3.5">{picCell}</td>
                     <td className="px-5 py-3.5 text-xs text-slate-600">{dlCell}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => openEdit(
-                            row.rowKind === 'item'    ? 'fase'    :
-                            row.rowKind === 'rincian' ? 'rincian' :
-                            (row.rowKind as NodeKind),
-                            row,
-                          )}
-                          title="Edit"
-                          className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const kind: NodeKind =
-                              row.rowKind === 'item'    ? 'fase'    :
-                              row.rowKind === 'rincian' ? 'rincian' :
-                              (row.rowKind as NodeKind);
-                            const id = (row as ItemRow | TujuanRow | RisikoRow | ProsedurRow).data.id;
-                            setDeleteTarget({ kind, id, title: row.title });
-                          }}
-                          title="Hapus"
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 );
               })
@@ -1075,6 +1068,15 @@ const UnifiedAuditTable: React.FC<{
           saving={updateMut.isPending}
           onSave={(data) => updateMut.mutate({ target: editTarget, data })}
           onClose={() => setEditTarget(null)}
+          onDelete={() => {
+            // Tutup modal edit, buka konfirmasi delete
+            setDeleteTarget({
+              kind:  editTarget.kind,
+              id:    editTarget.apiId,
+              title: editTarget.initial.title ?? '',
+            });
+            setEditTarget(null);
+          }}
           minDate={minDate}
           maxDate={maxDate}
         />
@@ -1099,14 +1101,51 @@ const UnifiedAuditTable: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const JENIS_BADGE: Record<string, string> = {
+  'PKPT':     'bg-primary-50 text-primary-700 border border-primary-200',
+  'Non PKPT': 'bg-purple-50 text-purple-700 border border-purple-200',
+};
+
+/** StatCard selaras Modul 3 — icon kiri, value besar, label berwarna, sub abu-abu */
+function StatCardM2({ label, value, sub, Icon, tone }: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  Icon: React.ElementType;
+  tone: 'slate' | 'amber' | 'green' | 'primary' | 'blue';
+}) {
+  const toneClass = {
+    slate:   { icon: 'bg-slate-100 text-slate-600',    label: 'text-slate-600'   },
+    amber:   { icon: 'bg-amber-50 text-amber-700',     label: 'text-amber-700'   },
+    green:   { icon: 'bg-green-50 text-green-700',     label: 'text-green-700'   },
+    blue:    { icon: 'bg-blue-50 text-blue-700',       label: 'text-blue-700'    },
+    primary: { icon: 'bg-primary-50 text-primary-700', label: 'text-primary-700' },
+  }[tone];
+
+  return (
+    <div className="stat-card">
+      <div className={`p-2 rounded-lg flex-shrink-0 ${toneClass.icon}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-2xl font-bold leading-none text-slate-900">
+          {typeof value === 'number' ? value.toLocaleString('id-ID') : value}
+        </p>
+        <p className={`text-xs font-bold mt-1 ${toneClass.label}`}>{label}</p>
+        {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Program Detail View
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ProgramDetailView: React.FC<{ programId: string; onBack: () => void }> = ({ programId, onBack }) => {
-  const qc = useQueryClient();
-  const [editingStatus, setEditingStatus] = useState(false);
-  const [headerStatus, setHeaderStatus]   = useState<ProgramStatus>('draft');
-
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['penugasan-detail', programId],
     queryFn: () => penugasanApi.getProgram(programId),
@@ -1126,17 +1165,6 @@ const ProgramDetailView: React.FC<{ programId: string; onBack: () => void }> = (
     return planDetailData.team.map((m) => ({ user_id: m.user_id, nama_lengkap: m.nama_lengkap }));
   }, [planDetailData]);
 
-  const updateMut = useMutation({
-    mutationFn: (payload: { status?: string }) => penugasanApi.updateProgram(programId, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['penugasan-detail', programId] });
-      qc.invalidateQueries({ queryKey: ['penugasan-programs'] });
-      setEditingStatus(false);
-      toast.success('Status diperbarui.');
-    },
-    onError: () => toast.error('Gagal memperbarui program.'),
-  });
-
   if (isLoading) return <div className="flex items-center justify-center py-24"><Spinner className="w-8 h-8" /></div>;
   if (!detail) return (
     <div className="text-center py-16 text-slate-500">
@@ -1153,83 +1181,77 @@ const ProgramDetailView: React.FC<{ programId: string; onBack: () => void }> = (
   const totalMd  = sumField(perencanaan, 'man_days') + sumField(pelaporan, 'man_days') + sumField(allRincian, 'man_days');
   const allPicArrays = [...perencanaan.map((f) => f.pics), ...pelaporan.map((f) => f.pics), ...allRincian.map((r) => r.pics)];
   const picCount = uniquePics(allPicArrays);
-  const progress = totalEst > 0 ? Math.min(100, Math.round((totalMd / totalEst) * 100)) : 0;
 
   return (
-    <div className="space-y-5">
-      {/* ── Header card ── */}
-      <div className="card overflow-hidden">
-        <div className="px-5 py-4 flex items-start gap-3">
-          <button onClick={onBack} className="mt-1 btn-icon hover:bg-slate-100 text-slate-500 shrink-0">
-            <ArrowLeft className="w-4 h-4" />
+    <div className="space-y-4">
+      {/* ── Header card — selaras Modul 3 ── */}
+      <div className="card p-4 sm:p-6">
+        <div className="flex items-start gap-3 mb-3">
+          <button
+            onClick={onBack}
+            className="btn-icon hover:bg-slate-100 text-slate-500 -ml-1"
+            title="Kembali"
+          >
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-slate-800 leading-snug mb-1.5">{program.annual_plan_judul}</h1>
-            <div className="flex items-center gap-3 flex-wrap">
-              {program.auditee && (
-                <span className="flex items-center gap-1 text-xs text-slate-500">
-                  <MapPin className="w-3 h-3 text-slate-400" /> {program.auditee}
+            <h2 className="font-bold text-slate-800 text-base sm:text-lg leading-snug">
+              {program.annual_plan_judul}
+            </h2>
+            {/* Meta badges: Jenis, Kategori, Sifat */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {program.jenis_program && (
+                <span className={`badge ${JENIS_BADGE[program.jenis_program as keyof typeof JENIS_BADGE] ?? 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                  {program.jenis_program}
                 </span>
               )}
-              {editingStatus ? (
-                <div className="flex items-center gap-2">
-                  <select value={headerStatus} onChange={(e) => setHeaderStatus(e.target.value as ProgramStatus)}
-                    className="select-input py-1 text-xs w-32">
-                    {(Object.keys(STATUS_LABEL) as ProgramStatus[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                  </select>
-                  <button onClick={() => updateMut.mutate({ status: headerStatus })} disabled={updateMut.isPending}
-                    className="btn-primary py-1 text-xs">
-                    {updateMut.isPending ? <Spinner className="w-3 h-3" /> : <Check className="w-3 h-3" />} Simpan
-                  </button>
-                  <button onClick={() => setEditingStatus(false)} className="btn-secondary py-1 text-xs">Batal</button>
-                </div>
-              ) : (
-                <button onClick={() => { setEditingStatus(true); setHeaderStatus(program.status ?? 'draft'); }}
-                  className={`badge cursor-pointer hover:opacity-80 transition-opacity ${STATUS_BADGE[program.status ?? 'draft']}`}>
-                  {STATUS_LABEL[program.status ?? 'draft']}
-                  <Edit2 className="w-2.5 h-2.5 ml-0.5" />
-                </button>
+              {program.kategori_program && (
+                <span className="badge bg-blue-100 text-blue-700 border border-blue-200">
+                  {program.kategori_program}
+                </span>
+              )}
+              {program.status_program && (
+                <span className="badge bg-purple-100 text-purple-700 border border-purple-200">
+                  {program.status_program}
+                </span>
+              )}
+            </div>
+            {/* Date range dari Modul 1 */}
+            <div className="flex flex-col gap-1 mt-2">
+              {(planDetailData?.tanggal_mulai || planDetailData?.tanggal_selesai) && (
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  {fmtDate(planDetailData?.tanggal_mulai)} — {fmtDate(planDetailData?.tanggal_selesai)}
+                </p>
               )}
             </div>
           </div>
-
         </div>
+      </div>
 
-        {/* Stat row (Module 1 style) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100 border-t border-slate-100 bg-slate-50/40">
-          <div className="px-5 py-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-slate-100"><Clock className="w-4 h-4 text-slate-500" /></div>
-            <div>
-              <p className="text-base font-black text-slate-800 tabular-nums">{fmt(totalEst)}</p>
-              <p className="section-label">Total Est Hari</p>
-            </div>
-          </div>
-          <div className="px-5 py-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary-50"><TrendingUp className="w-4 h-4 text-primary-600" /></div>
-            <div>
-              <p className="text-base font-black text-primary-700 tabular-nums">{fmt(totalMd)}</p>
-              <p className="section-label">Total Man-Days</p>
-            </div>
-          </div>
-          <div className="px-5 py-3 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-indigo-50"><Users className="w-4 h-4 text-indigo-600" /></div>
-            <div>
-              <p className="text-base font-black text-indigo-700 tabular-nums">{picCount}</p>
-              <p className="section-label">Anggota Tim</p>
-            </div>
-          </div>
-          <div className="px-5 py-3 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-              <div className="w-7 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            <div>
-              <p className="text-base font-black text-emerald-700 tabular-nums">{progress}%</p>
-              <p className="section-label">Progress</p>
-            </div>
-          </div>
-        </div>
+      {/* ── Stat cards — data sama, UI style selaras Modul 3 ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCardM2
+          Icon={Clock}
+          value={fmt(totalEst)}
+          label="Total Est Hari"
+          sub="hari penugasan"
+          tone="slate"
+        />
+        <StatCardM2
+          Icon={TrendingUp}
+          value={fmt(totalMd)}
+          label="Total Man-Days"
+          sub="man-days"
+          tone="primary"
+        />
+        <StatCardM2
+          Icon={Users}
+          value={picCount}
+          label="Anggota Tim"
+          sub="orang"
+          tone="blue"
+        />
       </div>
 
       {/* ── Unified Table ── */}
@@ -1249,21 +1271,32 @@ const ProgramDetailView: React.FC<{ programId: string; onBack: () => void }> = (
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-const JENIS_BADGE: Record<string, string> = {
-  'PKPT':     'bg-primary-50 text-primary-700 border border-primary-200',
-  'Non PKPT': 'bg-purple-50 text-purple-700 border border-purple-200',
-};
-
 const PengawasanIndividualPage: React.FC = () => {
+  const navigate = useNavigate();
   const qc = useQueryClient();
+  // Simpan selected program di URL (?program=xxx) agar tetap setelah refresh
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('program');
+  const setSelectedId = (id: string | null) => {
+    if (id) setSearchParams({ program: id });
+    else setSearchParams({});
+  };
   const [tahun, setTahun]           = useState(new Date().getFullYear());
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch]         = useState('');
-  const [filterJenis, setFilterJenis] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [openingId, setOpeningId]   = useState<string | null>(null); // annual_plan_id sedang dibuka
-  const [page, setPage]             = useState(1);
+  const [search, setSearch]               = useState('');
+  const [filterJenis, setFilterJenis]     = useState('');
+  const [filterKategori, setFilterKategori] = useState('');
+  const [filterSifat, setFilterSifat]     = useState('');
+  const [openingId, setOpeningId]         = useState<string | null>(null);
+  const [page, setPage]                   = useState(1);
   const PAGE_SIZE = 10;
+
+  const { data: kelompokRes } = useQuery({
+    queryKey: ['kelompok-penugasan'],
+    queryFn: () => settingsApi.getKelompokPenugasan().then((r) => r.data.data ?? []),
+    staleTime: 5 * 60_000,
+  });
+  const kategoriOptions = useMemo(() => (kelompokRes ?? []).filter((k) => k.tipe === 'Kategori' && k.is_active).map((k) => k.nilai), [kelompokRes]);
+  const sifatOptions    = useMemo(() => (kelompokRes ?? []).filter((k) => k.tipe === 'Sifat Program' && k.is_active).map((k) => k.nilai), [kelompokRes]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['penugasan-programs', tahun],
@@ -1273,8 +1306,8 @@ const PengawasanIndividualPage: React.FC = () => {
 
   const programs: AuditProgram[] = (data ?? []) as AuditProgram[];
 
-  const hasFilters = !!(search || filterJenis || filterStatus);
-  const resetAllFilters = () => { setSearch(''); setFilterJenis(''); setFilterStatus(''); setPage(1); };
+  const hasFilters = !!(search || filterJenis || filterKategori || filterSifat);
+  const resetAllFilters = () => { setSearch(''); setFilterJenis(''); setFilterKategori(''); setFilterSifat(''); setPage(1); };
 
   const filtered = useMemo(() => {
     return programs.filter((p) => {
@@ -1282,14 +1315,12 @@ const PengawasanIndividualPage: React.FC = () => {
         const s = search.toLowerCase();
         if (!p.annual_plan_judul.toLowerCase().includes(s) && !(p.auditee ?? '').toLowerCase().includes(s)) return false;
       }
-      if (filterJenis && p.jenis_program !== filterJenis) return false;
-      if (filterStatus) {
-        const effStatus = p.status ?? 'belum_dimulai';
-        if (effStatus !== filterStatus) return false;
-      }
+      if (filterJenis    && p.jenis_program    !== filterJenis)    return false;
+      if (filterKategori && p.kategori_program !== filterKategori) return false;
+      if (filterSifat    && p.status_program   !== filterSifat)    return false;
       return true;
     });
-  }, [programs, search, filterJenis, filterStatus]);
+  }, [programs, search, filterJenis, filterKategori, filterSifat]);
 
   // Pagination
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -1297,7 +1328,7 @@ const PengawasanIndividualPage: React.FC = () => {
   const pagedData   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Reset to page 1 whenever filters / year change
-  const prevFilterKey = search + filterJenis + filterStatus + tahun;
+  const prevFilterKey = search + filterJenis + filterKategori + filterSifat + tahun;
   const filterKeyRef  = React.useRef(prevFilterKey);
   if (filterKeyRef.current !== prevFilterKey) { filterKeyRef.current = prevFilterKey; if (page !== 1) setPage(1); }
 
@@ -1337,11 +1368,18 @@ const PengawasanIndividualPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
-      {/* ── Header (Module 1 style) ── */}
+
+      {/* ── Breadcrumb + Year Filter (satu baris) ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-slate-800">
-          Daftar Program Kerja Tahun {tahun}
-        </h2>
+        <button
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-primary-700 transition-colors group"
+        >
+          <Home className="w-3.5 h-3.5 group-hover:text-primary-600 transition-colors" />
+          <span>Beranda</span>
+          <span className="text-slate-300 mx-0.5">/</span>
+          <span className="text-slate-700 font-semibold">Perencanaan Pengawasan Individual</span>
+        </button>
         <YearFilter value={tahun} onChange={setTahun} />
       </div>
 
@@ -1370,13 +1408,17 @@ const PengawasanIndividualPage: React.FC = () => {
             </select>
           </div>
           <div>
-            <label className="section-label block mb-1">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="select-input">
-              <option value="">Semua Status</option>
-              <option value="draft">Draft</option>
-              <option value="aktif">Aktif</option>
-              <option value="selesai">Selesai</option>
-              <option value="belum_dimulai">Belum Dimulai</option>
+            <label className="section-label block mb-1">Kategori</label>
+            <select value={filterKategori} onChange={(e) => { setFilterKategori(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Kategori</option>
+              {kategoriOptions.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="section-label block mb-1">Sifat Program</label>
+            <select value={filterSifat} onChange={(e) => { setFilterSifat(e.target.value); setPage(1); }} className="select-input">
+              <option value="">Semua Sifat</option>
+              {sifatOptions.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -1397,10 +1439,16 @@ const PengawasanIndividualPage: React.FC = () => {
                 <button onClick={() => setFilterJenis('')}><X className="w-3 h-3" /></button>
               </span>
             )}
-            {filterStatus && (
+            {filterKategori && (
               <span className="filter-chip">
-                Status: {filterStatus === 'belum_dimulai' ? 'Belum Dimulai' : STATUS_LABEL[filterStatus as ProgramStatus] ?? filterStatus}
-                <button onClick={() => setFilterStatus('')}><X className="w-3 h-3" /></button>
+                Kategori: {filterKategori}
+                <button onClick={() => setFilterKategori('')}><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {filterSifat && (
+              <span className="filter-chip">
+                Sifat: {filterSifat}
+                <button onClick={() => setFilterSifat('')}><X className="w-3 h-3" /></button>
               </span>
             )}
             <button onClick={resetAllFilters} className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors ml-1">
@@ -1412,16 +1460,6 @@ const PengawasanIndividualPage: React.FC = () => {
 
       {/* ── Table card ── */}
       <div className="card overflow-hidden">
-        {/* Toolbar */}
-        <div className="px-5 py-3.5 border-b border-slate-100">
-          <p className="text-xs text-slate-400">
-            Menampilkan <span className="font-semibold text-slate-600">{filtered.length}</span> dari{' '}
-            <span className="font-semibold text-slate-600">{programs.length}</span> program · klik baris untuk melihat atau mengisi rincian
-            {filtered.length > 0 && (
-              <> · <span className="font-semibold text-slate-600">{(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)}</span> ditampilkan</>
-            )}
-          </p>
-        </div>
 
         {/* Loading / Error */}
         {isLoading ? (
@@ -1435,17 +1473,17 @@ const PengawasanIndividualPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table-base min-w-[980px]">
+            <table className="table-base min-w-[1060px]">
               <thead className="table-head">
                 <tr>
                   <th className="w-10 text-center">#</th>
                   <th>Program Kerja</th>
                   <th className="w-28">Jenis</th>
+                  <th className="w-28">Kategori</th>
+                  <th className="w-28">Sifat</th>
                   <th className="w-24 text-center">Personil</th>
                   <th className="w-36 text-right">Hari Penugasan</th>
                   <th className="w-32 text-right">Man-Days</th>
-                  <th className="w-40">Auditee</th>
-                  <th className="w-28">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -1509,6 +1547,18 @@ const PengawasanIndividualPage: React.FC = () => {
                             <span className="text-slate-300 text-sm">—</span>
                           )}
                         </td>
+                        {/* Kategori */}
+                        <td>
+                          {p.kategori_program
+                            ? <span className="badge bg-blue-50 text-blue-700 border border-blue-200">{p.kategori_program}</span>
+                            : <span className="text-slate-300 text-sm">—</span>}
+                        </td>
+                        {/* Sifat Program */}
+                        <td>
+                          {p.status_program
+                            ? <span className="badge bg-violet-50 text-violet-700 border border-violet-200">{p.status_program}</span>
+                            : <span className="text-slate-300 text-sm">—</span>}
+                        </td>
                         <td className="text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <Users className="w-3.5 h-3.5 text-slate-400" />
@@ -1535,27 +1585,6 @@ const PengawasanIndividualPage: React.FC = () => {
                             </span>
                           ) : (
                             <span className="text-slate-300 text-sm">—</span>
-                          )}
-                        </td>
-                        <td>
-                          {p.auditee ? (
-                            <span className="text-sm text-slate-600 flex items-center gap-1.5">
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              {p.auditee}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 text-sm">—</span>
-                          )}
-                        </td>
-                        <td>
-                          {p.status ? (
-                            <span className={`badge ${STATUS_BADGE[p.status]}`}>
-                              {STATUS_LABEL[p.status]}
-                            </span>
-                          ) : (
-                            <span className="badge bg-slate-100 text-slate-400 border border-slate-200">
-                              Belum Dimulai
-                            </span>
                           )}
                         </td>
                       </tr>

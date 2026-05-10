@@ -18,13 +18,14 @@ const MOBILE_NAV = [
   { to: '/',                         icon: Home,     label: 'Home',                               roles: null },
   { to: '/perencanaan/pkpt',         icon: FileText, label: 'Perencanaan Pengawasan Tahunan',     roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
   { to: '/perencanaan/individual',   icon: FileText, label: 'Perencanaan Pengawasan Individual',  roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
+  { to: '/pelaksanaan',              icon: Shield,   label: 'Pelaksanaan Audit & Kertas Kerja',   roles: ['kepala_spi','pengendali_teknis','anggota_tim','admin_spi'] },
   { to: '/admin/users',              icon: Users,    label: 'Manajemen User',                     roles: ['admin_spi','it_admin'] },
 ];
 
 const PAGE_TITLES: { pattern: string; title: string; subtitle?: string }[] = [
   { pattern: '/perencanaan/pkpt',       title: 'Perencanaan Pengawasan Tahunan',    subtitle: 'Modul 1 — PKPT & Non PKPT' },
   { pattern: '/perencanaan/individual', title: 'Perencanaan Pengawasan Individual', subtitle: 'Modul 2 — Program Kerja Detail per Penugasan' },
-  { pattern: '/pelaksanaan',            title: 'Pelaksanaan Audit & Kertas Kerja',  subtitle: 'Modul 3 — Dalam Pengembangan' },
+  { pattern: '/pelaksanaan',            title: 'Pelaksanaan Audit & Kertas Kerja',  subtitle: 'Modul 3 — Project Management, Auditor\'s Copy & KKA' },
   { pattern: '/pelaporan',              title: 'Pelaporan & Komunikasi Hasil',      subtitle: 'Modul 4 — Dalam Pengembangan' },
   { pattern: '/sintesis',               title: 'Sintesis Hasil Pengawasan',         subtitle: 'Modul 5 — Dalam Pengembangan' },
   { pattern: '/pemantauan',             title: 'Pemantauan Tindak Lanjut Temuan',  subtitle: 'Modul 6 — Monitoring tindak lanjut hasil audit' },

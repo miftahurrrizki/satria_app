@@ -65,6 +65,8 @@ export async function listPrograms(req: Request, res: Response): Promise<void> {
         aap.id                    AS annual_plan_id,
         aap.judul_program         AS annual_plan_judul,
         aap.jenis_program,
+        aap.kategori_program,
+        aap.status_program,
         aap.tanggal_mulai,
         aap.tanggal_selesai,
         aap.man_days_estimasi,
@@ -202,7 +204,12 @@ export async function getProgram(req: Request, res: Response): Promise<void> {
 
     // Fetch program header
     const progRes = await query(
-      `SELECT ap.*, aap.judul_program AS annual_plan_judul, aap.man_days_estimasi
+      `SELECT ap.*,
+              aap.judul_program    AS annual_plan_judul,
+              aap.man_days_estimasi,
+              aap.jenis_program,
+              aap.kategori_program,
+              aap.status_program
        FROM penugasan.audit_programs ap
        JOIN pkpt.annual_audit_plans aap ON aap.id = ap.annual_plan_id
        WHERE ap.id = $1 AND ap.deleted_at IS NULL ${aclClause}`,

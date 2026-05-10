@@ -12,23 +12,25 @@
  */
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layers, Target, Scale, Tags, Calendar, Settings, Plus, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Layers, Target, Scale, Tags, Calendar, Settings, Plus, ChevronRight, AlertTriangle, Building2, Save, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   settingsApi, HosKategori, SasaranStrategis, BobotPeran, KelompokPenugasan,
 } from '../../services/api';
 import { useAuthStore } from '../../store/auth.store';
+import StrukturOrganisasiTab from './StrukturOrganisasiTab';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i);
 
-type TabId = 'hos' | 'sasaran' | 'bobot' | 'tipe';
+type TabId = 'hos' | 'sasaran' | 'bobot' | 'tipe' | 'organisasi';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'hos',     label: 'House of Strategy', icon: Layers },
-  { id: 'sasaran', label: 'Sasaran Strategis', icon: Target },
-  { id: 'bobot',   label: 'Bobot Peran',       icon: Scale  },
-  { id: 'tipe',    label: 'Kelompok Penugasan', icon: Tags   },
+  { id: 'hos',        label: 'House of Strategy',   icon: Layers    },
+  { id: 'sasaran',    label: 'Sasaran Strategis',   icon: Target    },
+  { id: 'bobot',      label: 'Bobot Peran',         icon: Scale     },
+  { id: 'tipe',       label: 'Kelompok Penugasan',  icon: Tags      },
+  { id: 'organisasi', label: 'Struktur Organisasi', icon: Building2 },
 ];
 
 export default function PengaturanSistemPage() {
@@ -101,10 +103,11 @@ export default function PengaturanSistemPage() {
 
       {/* TAB CONTENT */}
       <div className="pt-2">
-        {activeTab === 'hos'     && <HosTab tahun={tahun} />}
-        {activeTab === 'sasaran' && <SasaranTab tahun={tahun} />}
-        {activeTab === 'bobot'   && <BobotTab tahun={tahun} />}
-        {activeTab === 'tipe'    && <KelompokTab />}
+        {activeTab === 'hos'        && <HosTab tahun={tahun} />}
+        {activeTab === 'sasaran'    && <SasaranTab tahun={tahun} />}
+        {activeTab === 'bobot'      && <BobotTab tahun={tahun} />}
+        {activeTab === 'tipe'       && <KelompokTab />}
+        {activeTab === 'organisasi' && <StrukturOrganisasiTab />}
       </div>
       
     </div>
@@ -561,6 +564,7 @@ function SasaranFormModal({
             disabled={loading || !editing.kategori_id || !editing.nama}
             className="btn-primary disabled:opacity-50"
           >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {loading ? 'Menyimpan...' : 'Simpan'}
           </button>
         </div>

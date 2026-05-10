@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   User, Mail, BadgeInfo, MapPin,
-  KeyRound, Eye, EyeOff, Check, Layers,
+  KeyRound, Eye, EyeOff, Check, Layers, Save, Loader2,
   Calendar, Shield, FileText, PieChart, CheckSquare, LayoutGrid
 } from 'lucide-react';
 import { ROLE_LABELS } from '../types';
@@ -403,9 +403,10 @@ function UbahPasswordTab() {
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || !isValid}
-          className="w-full py-3 bg-primary-600 text-white rounded-xl text-[13px] font-bold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-2"
+          className="btn-primary w-full justify-center mt-2"
           aria-disabled={mutation.isPending || !isValid}
         >
+          {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {mutation.isPending ? 'Menyimpan...' : 'Simpan Password Baru'}
         </button>
       </div>

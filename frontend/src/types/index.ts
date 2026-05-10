@@ -416,6 +416,8 @@ export interface AuditProgram {
   updated_at: string | null;
   // From JOIN with pkpt.annual_audit_plans
   jenis_program?: JenisProgram;
+  kategori_program?: string;
+  status_program?: string;
   tanggal_mulai?: string;
   tanggal_selesai?: string;
   // Aggregates (from list endpoint; 0 if program not created yet)
@@ -485,4 +487,136 @@ export interface ProgramDetail {
   perencanaan: FaseItem[];
   pelaksanaan: Tujuan[];
   pelaporan: FaseItem[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modul 3 — Pelaksanaan, KKA, Auditor's Copy
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface NasHealth {
+  connected: boolean;
+  basePath: string;
+  isProduction: boolean;
+  message?: string;
+  checkedAt: string;
+}
+
+export interface ProgramOverviewM3 {
+  id: string;
+  annual_plan_id: string;
+  tahun: number;
+  auditee: string | null;
+  status: ProgramStatus;
+  nas_folder_name: string | null;
+  nas_initialized_at: string | null;
+  judul_program: string;
+  jenis_program: 'PKPT' | 'Non PKPT' | null;
+  kategori_program: string | null;
+  status_program: string | null;
+  total_anggota_tim: number;
+  tanggal_mulai: string;
+  tanggal_selesai: string;
+  total_langkah: number;
+  langkah_selesai: number;
+  langkah_dalam_proses: number;
+  langkah_belum: number;
+  progress_persen: number;
+  total_evidence: number;
+  prosedur_dengan_simpulan: number;
+}
+
+export interface RincianM3 {
+  id: string;
+  prosedur_id: string;
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  catatan_pengujian: string | null;
+  pengujian_updated_at: string | null;
+  pengujian_updated_by: string | null;
+  pics: { user_id: string; nama: string }[];
+  evidence_count: number;
+}
+
+export interface ProsedurM3 {
+  id: string;
+  risiko_id: string;
+  label: string | null;
+  title: string;
+  order_index: number;
+  tanggal_jatuh_tempo: string | null;
+  // Workpaper (KKA)
+  workpaper_id: string | null;
+  simpulan: string | null;
+  has_temuan: boolean;
+  temuan_catatan: string | null;
+  finalized_at: string | null;
+  finalized_by: string | null;
+  rincian: RincianM3[];
+}
+
+export interface RisikoM3 {
+  id: string;
+  tujuan_id: string;
+  label: string | null;
+  title: string;
+  risk_ref_id: string | null;
+  risk_ref_nama: string | null;
+  order_index: number;
+  tanggal_jatuh_tempo: string | null;
+  prosedur: ProsedurM3[];
+}
+
+export interface TujuanM3 {
+  id: string;
+  label: string | null;
+  title: string;
+  order_index: number;
+  risiko: RisikoM3[];
+}
+
+export interface FaseItemM3 {
+  id: string;
+  fase: 'perencanaan' | 'pelaporan';
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  pics: { user_id: string; nama: string }[];
+}
+
+export interface HierarkiM3 {
+  perencanaan: FaseItemM3[];
+  pelaksanaan: TujuanM3[];
+  pelaporan: FaseItemM3[];
+}
+
+export interface EvidenceFile {
+  id: string;
+  rincian_id: string;
+  nama_file: string;
+  nama_asli: string;
+  nas_relative_path: string;
+  nas_subfolder: string | null;
+  ukuran_byte: number;
+  mime_type: string | null;
+  deskripsi: string | null;
+  uploaded_at: string;
+  uploaded_by_id?: string;
+  uploaded_by_nama: string;
+  rincian_title?: string;
+  prosedur_title?: string;
+}
+
+export interface NasFileEntry {
+  name: string;
+  isDirectory: boolean;
+  size: number;
+  modifiedAt: string;
+  relativePath: string;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { ChevronRight, BarChart2, FileText, Calendar, Users, Award, CalendarDays, Mail } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { ChevronRight, BarChart2, FileText, Calendar, Users, Award, CalendarDays, Mail, Home } from 'lucide-react';
 import RiskTab from './components/RiskTab';
 import ProgramTab from './components/ProgramTab';
 import WorkloadTab from './components/WorkloadTab';
@@ -22,6 +22,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 const CURRENT_YEAR = new Date().getFullYear();
 
 export default function PKPTPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const searchParamsString = searchParams.toString();
@@ -50,45 +51,44 @@ export default function PKPTPage() {
 
   return (
     <div className="space-y-6">
-      
-      {/* ── Panel Navigasi Atas ── */}
-      <div className="bg-white px-5 sm:px-8 pt-5 rounded-2xl border border-slate-200 shadow-sm">
-        
-        {/* Baris Atas: Breadcrumb & Year Selector */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-            <span className="hover:text-slate-800 cursor-pointer transition-colors">
-              Perencanaan
-            </span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-primary-700 font-bold bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100">
-              Pengawasan Tahunan
+
+      {/* ── Breadcrumb + Year Filter (satu baris) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <button
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-primary-700 transition-colors group"
+        >
+          <Home className="w-3.5 h-3.5 group-hover:text-primary-600 transition-colors" />
+          <span>Beranda</span>
+          <span className="text-slate-300 mx-0.5">/</span>
+          <span className="text-slate-700 font-semibold">Perencanaan Pengawasan Tahunan</span>
+        </button>
+
+        {/* Filter Tahun Audit */}
+        <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
+          <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
+            <Calendar className="w-4 h-4 text-slate-500" />
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider hidden sm:block">
+              Tahun Audit
             </span>
           </div>
-
-          {/* Filter Tahun Audit (Redesign Compact & Elegan) */}
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
-            <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
-              <Calendar className="w-4 h-4 text-slate-500" />
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider hidden sm:block">
-                Tahun Audit
-              </span>
-            </div>
-            <div className="relative">
-              <select
-                value={tahun}
-                onChange={(e) => setTahun(Number(e.target.value))}
-                className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
-              >
-                {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <ChevronRight className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
-            </div>
+          <div className="relative">
+            <select
+              value={tahun}
+              onChange={(e) => setTahun(Number(e.target.value))}
+              className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <ChevronRight className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
           </div>
         </div>
+      </div>
 
-        {/* Baris Bawah: Underline Tabs */}
+      {/* ── Panel Tab ── */}
+      <div className="bg-white px-5 sm:px-8 pt-5 rounded-2xl border border-slate-200 shadow-sm">
+
+        {/* Tabs */}
         <div className="flex gap-4 sm:gap-8 border-b border-slate-200 overflow-x-auto no-scrollbar -mx-5 px-5 sm:mx-0 sm:px-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;

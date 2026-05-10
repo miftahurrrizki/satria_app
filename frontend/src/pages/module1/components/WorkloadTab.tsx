@@ -7,6 +7,7 @@ import {
 import { workloadApi, kalenderKerjaApi } from '../../../services/api';
 import { WorkloadAuditor } from '../../../types';
 import { ROLE_LABELS } from '../../../types';
+import { parseLocalDate } from '../../../utils/dateUtils';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
@@ -43,7 +44,9 @@ function getRoleTimBadge(role: string) {
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+  const parsed = parseLocalDate(d);
+  if (!parsed) return '—';
+  return parsed.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
 function workloadStatus(utilisasi: number) {

@@ -19,6 +19,7 @@ import {
   ceoLetterApi, CeoLetterArea, AreaPrioritas,
 } from '../../services/api';
 import { useAuthStore } from '../../store/auth.store';
+import { toInputDate } from '../../utils/dateUtils';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const PRIORITAS_OPTS: AreaPrioritas[] = ['Tinggi', 'Sedang', 'Rendah'];
@@ -50,7 +51,7 @@ export default function CeoLetterPage() {
   useEffect(() => {
     setJudul(header?.judul ?? '');
     setNomor(header?.nomor_surat ?? '');
-    setTanggal(header?.tanggal_terbit ? header.tanggal_terbit.slice(0, 10) : '');
+    setTanggal(toInputDate(header?.tanggal_terbit));
     setRingkasan(header?.isi_ringkasan ?? '');
     setAreas(data?.areas ?? []);
     setPendingFile(null);

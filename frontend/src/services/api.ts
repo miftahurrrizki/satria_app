@@ -6,6 +6,7 @@ import {
   PendingEvaluationPlan, EvaluationSummaryRow, EvaluationDetailRow, SubmitEvaluationPayload,
   Direktorat, Divisi, Departemen, SasaranKorporat,
   AuditProgram, FaseItem, Rincian, Prosedur, Risiko, Tujuan, ProgramDetail,
+  NasHealth, ProgramOverviewM3, HierarkiM3, EvidenceFile, NasFileEntry, ItemStatus,
 } from '../types';
 
 /**
@@ -191,18 +192,48 @@ export const evaluationsApi = {
 };
 
 // ── Organisasi (Direktorat / Divisi / Departemen) – Dropdown ───
+export interface DivisiMgmt extends Divisi {
+  direktorat_nama?: string;
+  deskripsi?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface DepartemenMgmt extends Departemen {
+  divisi_nama?: string;
+  direktorat_nama?: string;
+  deskripsi?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const organisasiApi = {
   // Dropdown endpoints (simple list without pagination)
   getDirektorats: () =>
     api.get<ApiResponse<Direktorat[]>>('/dropdown/direktorat'),
   getDivisis: (direktorat_id?: string) =>
-    api.get<ApiResponse<Divisi[]>>('/dropdown/divisi', 
+    api.get<ApiResponse<Divisi[]>>('/dropdown/divisi',
       { params: { ...(direktorat_id ? { direktorat_id } : {}) } }),
   getDepartemens: (divisi_id?: string) =>
-    api.get<ApiResponse<Departemen[]>>('/dropdown/departemen', 
+    api.get<ApiResponse<Departemen[]>>('/dropdown/departemen',
       { params: { ...(divisi_id ? { divisi_id } : {}) } }),
   getSasaranKorporat: () =>
     api.get<ApiResponse<SasaranKorporat[]>>('/dropdown/sasaran-korporat'),
+
+  // Management endpoints (paginated, with extra join fields)
+  getDivisiList: (params?: { search?: string; is_active?: string }) =>
+    api.get<ApiResponse<DivisiMgmt[]> & { meta?: { total: number } }>(
+      '/divisi', { params: { limit: 200, ...params } }),
+  getDepartemenList: (params?: { search?: string; divisi_id?: string; is_active?: string }) =>
+    api.get<ApiResponse<DepartemenMgmt[]> & { meta?: { total: number } }>(
+      '/departemen', { params: { limit: 500, ...params } }),
+  createDivisi: (data: { direktorat_id: string; kode: string; nama: string; deskripsi?: string }) =>
+    api.post<ApiResponse<DivisiMgmt>>('/divisi', data),
+  updateDivisi: (id: string, data: Partial<{ direktorat_id: string; kode: string; nama: string; deskripsi: string; is_active: boolean }>) =>
+    api.patch<ApiResponse<DivisiMgmt>>(`/divisi/${id}`, data),
+  createDepartemen: (data: { divisi_id: string; kode: string; nama: string; deskripsi?: string }) =>
+    api.post<ApiResponse<DepartemenMgmt>>('/departemen', data),
+  updateDepartemen: (id: string, data: Partial<{ divisi_id: string; kode: string; nama: string; deskripsi: string; is_active: boolean }>) =>
+    api.patch<ApiResponse<DepartemenMgmt>>(`/departemen/${id}`, data),
 };
 
 // ── User Stats ────────────────────────────────────────────────
@@ -540,7 +571,7 @@ export const penugasanApi = {
   // Risiko
   createRisiko: (tujuanId: string, data: { title: string; risk_ref_id?: string; tanggal_jatuh_tempo?: string }) =>
     api.post<ApiResponse<Risiko>>(`/penugasan/tujuan/${tujuanId}/risiko`, data),
-  updateRisiko: (id: string, data: Partial<{ title: string; label: string; risk_ref_id: string | null; tanggal_jatuh_tempo: string }>) =>
+  updateRisiko: (id: string, data: Partial<{ title: string; label: string; risk_ref_id: string | null; tanggal_jatuh_tempo: string | null }>) =>
     api.patch<ApiResponse<Risiko>>(`/penugasan/risiko/${id}`, data),
   deleteRisiko: (id: string) =>
     api.delete<ApiResponse<null>>(`/penugasan/risiko/${id}`),
@@ -548,7 +579,7 @@ export const penugasanApi = {
   // Prosedur
   createProsedur: (risikoId: string, data: { title: string; tanggal_jatuh_tempo?: string }) =>
     api.post<ApiResponse<Prosedur>>(`/penugasan/risiko/${risikoId}/prosedur`, data),
-  updateProsedur: (id: string, data: Partial<{ title: string; label: string; tanggal_jatuh_tempo: string }>) =>
+  updateProsedur: (id: string, data: Partial<{ title: string; label: string; tanggal_jatuh_tempo: string | null }>) =>
     api.patch<ApiResponse<Prosedur>>(`/penugasan/prosedur/${id}`, data),
   deleteProsedur: (id: string) =>
     api.delete<ApiResponse<null>>(`/penugasan/prosedur/${id}`),
@@ -560,4 +591,68 @@ export const penugasanApi = {
     api.patch<ApiResponse<Rincian>>(`/penugasan/rincian/${id}`, data),
   deleteRincian: (id: string) =>
     api.delete<ApiResponse<null>>(`/penugasan/rincian/${id}`),
+};
+
+// ── Modul 3: Pelaksanaan, KKA, Auditor's Copy ─────────────────
+export const module3Api = {
+  // NAS health
+  nasHealth: () => api.get<ApiResponse<NasHealth>>('/module3/nas/health'),
+
+  // Program-level
+  getOverview: (programId: string) =>
+    api.get<ApiResponse<ProgramOverviewM3>>(`/module3/programs/${programId}/overview`),
+  getHierarki: (programId: string) =>
+    api.get<ApiResponse<HierarkiM3>>(`/module3/programs/${programId}/hierarki`),
+  initFolder: (programId: string) =>
+    api.post<ApiResponse<{ folderName: string; fullPath: string; alreadyExisted: boolean }>>(
+      `/module3/programs/${programId}/init-folder`,
+    ),
+  listNas: (programId: string, subPath = '') =>
+    api.get<ApiResponse<NasFileEntry[]> & { folderInitialized?: boolean }>(
+      `/module3/programs/${programId}/nas/list`, { params: { subPath } },
+    ),
+  listAllEvidence: (programId: string) =>
+    api.get<ApiResponse<EvidenceFile[]>>(`/module3/programs/${programId}/evidence`),
+
+  // Langkah (rincian)
+  updateProgress: (
+    rincianId: string,
+    data: Partial<{
+      status: ItemStatus;
+      tanggal_jatuh_tempo: string | null;
+      est_hari: number | null;
+      man_days: number | null;
+      pic_user_ids: string[];
+    }>,
+  ) => api.patch<ApiResponse<null>>(`/module3/rincian/${rincianId}/progress`, data),
+
+  updatePengujian: (rincianId: string, catatan_pengujian: string | null) =>
+    api.put<ApiResponse<null>>(`/module3/rincian/${rincianId}/pengujian`, { catatan_pengujian }),
+
+  listEvidenceForRincian: (rincianId: string) =>
+    api.get<ApiResponse<EvidenceFile[]>>(`/module3/rincian/${rincianId}/evidence`),
+
+  uploadEvidence: (rincianId: string, file: File, opts?: { subfolder?: string; deskripsi?: string }) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (opts?.subfolder) fd.append('subfolder', opts.subfolder);
+    if (opts?.deskripsi) fd.append('deskripsi', opts.deskripsi);
+    return api.post<ApiResponse<EvidenceFile>>(`/module3/rincian/${rincianId}/evidence`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      // No file size limit (backend juga tanpa limit)
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+  },
+
+  // Prosedur (simpulan)
+  upsertSimpulan: (
+    prosedurId: string,
+    data: { simpulan?: string | null; has_temuan?: boolean; temuan_catatan?: string | null; finalized?: boolean },
+  ) => api.put<ApiResponse<unknown>>(`/module3/prosedur/${prosedurId}/simpulan`, data),
+
+  // Evidence
+  downloadEvidenceUrl: (evidenceId: string) => `/api/module3/evidence/${evidenceId}/download`,
+  deleteEvidence: (evidenceId: string) =>
+    api.delete<ApiResponse<null>>(`/module3/evidence/${evidenceId}`),
 };

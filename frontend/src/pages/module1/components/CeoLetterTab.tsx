@@ -14,6 +14,7 @@ import {
   ceoLetterApi,
 } from '../../../services/api';
 import { useAuthStore } from '../../../store/auth.store';
+import { parseLocalDate, toInputDate } from '../../../utils/dateUtils';
 
 function ProgramsBadge({ count, names }: { count: number; names?: string[] }) {
   const [open, setOpen] = useState(false);
@@ -105,7 +106,9 @@ function normalizeArea(area: Partial<CeoLetterArea>, urutan = 0): CeoLetterArea 
 
 function fmtDate(value?: string | null) {
   if (!value) return '-';
-  return new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  const parsed = parseLocalDate(value);
+  if (!parsed) return '-';
+  return parsed.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function priorityClass(priority: AreaPrioritas) {
@@ -149,7 +152,7 @@ export default function CeoLetterTab({ tahun }: { tahun: number }) {
     setSelectedId(letter?.id ?? 'new');
     setJudul(letter?.judul ?? '');
     setNomor(letter?.nomor_surat ?? '');
-    setTanggal(letter?.tanggal_terbit ? letter.tanggal_terbit.slice(0, 10) : '');
+    setTanggal(toInputDate(letter?.tanggal_terbit));
     setRingkasan(letter?.isi_ringkasan ?? '');
     setAreas((letter?.areas ?? []).map((area, idx) => normalizeArea(area, idx)));
     setPendingFile(null);

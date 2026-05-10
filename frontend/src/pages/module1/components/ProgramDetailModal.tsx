@@ -7,6 +7,7 @@ import {
 import { annualPlansApi, settingsApi } from '../../../services/api';
 import { AnnualAuditPlan, AnnualAuditPlanDetail, RiskLevelKode } from '../../../types';
 import toast from 'react-hot-toast';
+import { parseLocalDate } from '../../../utils/dateUtils';
 
 interface Props {
   programId: string;
@@ -59,8 +60,8 @@ export default function ProgramDetailModal({ programId, onClose, onEdit, onFinal
 
   function fmtDate(d?: string) {
     if (!d) return '—';
-    const parsed = new Date(d);
-    if (Number.isNaN(parsed.getTime())) return '—';
+    const parsed = parseLocalDate(d);
+    if (!parsed || Number.isNaN(parsed.getTime())) return '—';
     return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
@@ -176,43 +177,52 @@ export default function ProgramDetailModal({ programId, onClose, onEdit, onFinal
                   </div>
                 </div>
 
-                {/* Auditee */}
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                  <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
-                        <Building2 className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="section-label">Auditee</p>
-                        <p className="text-sm font-semibold text-slate-800">Unit yang menjadi objek audit</p>
-                      </div>
+                {/* Auditee — compact list, scalable & selaras dengan Periode banner */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  {/* Header ringkas: icon + label + summary count */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-primary-600" />
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Auditee</p>
                     </div>
                     {auditeeGroups.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        <span className="badge bg-primary-50 border border-primary-200 text-primary-700">{auditeeGroups.length} divisi</span>
-                        <span className="badge bg-white border border-slate-200 text-slate-600">{auditeeDepartmentCount} departemen</span>
-                      </div>
+                      <p className="text-xs text-slate-500">
+                        <span className="font-bold text-slate-700">{auditeeDepartmentCount}</span> departemen
+                        <span className="mx-1.5 text-slate-300">·</span>
+                        <span className="font-bold text-slate-700">{auditeeGroups.length}</span> divisi
+                      </p>
                     )}
                   </div>
+
+                  {/* Body — list 2-kolom (divisi | departments) per row, divider tipis */}
                   {auditeeGroups.length > 0 ? (
                     <div className="divide-y divide-slate-100">
-                      {auditeeGroups.map((group) => (
-                        <div key={`${group.divisi}-${group.departments.join('-')}`} className="grid gap-2 px-4 py-3 sm:grid-cols-[190px_1fr] sm:gap-4">
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-700">{group.divisi}</p>
-                            <p className="text-[11px] font-medium text-slate-400">{group.departments.length} departemen</p>
+                      {auditeeGroups.map((group, gi) => (
+                        <div
+                          key={`${group.divisi}-${gi}`}
+                          className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 py-2.5 first:pt-0 last:pb-0"
+                        >
+                          {/* Kolom kiri: nama divisi */}
+                          <div className="sm:col-span-1 flex items-center gap-1.5">
+                            <span className="inline-block w-1 h-3.5 rounded-full bg-primary-400 shrink-0" />
+                            <p className="text-xs font-bold text-slate-700 leading-tight">{group.divisi}</p>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          {/* Kolom kanan: pills departemen */}
+                          <div className="sm:col-span-2 flex flex-wrap gap-1.5">
                             {group.departments.map((dept) => (
-                              <span key={dept} className="badge bg-primary-50 border border-primary-100 text-primary-700">{dept}</span>
+                              <span
+                                key={dept}
+                                className="inline-flex items-center rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {dept}
+                              </span>
                             ))}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="px-4 py-5 text-sm text-slate-400">Belum ada auditee yang dipilih.</div>
+                    <p className="text-sm text-slate-400 italic text-center py-4">Belum ada auditee yang dipilih.</p>
                   )}
                 </div>
 

@@ -10,6 +10,7 @@ import module1Routes       from './module1.routes';
 import organisasiRoutes    from './organisasi.routes';
 import settingsRoutes      from './settings.routes';
 import penugasanRoutes     from './penugasan.routes';
+import module3Routes       from './module3.routes';
 
 const router = Router();
 
@@ -33,5 +34,8 @@ router.use('/', settingsRoutes);
 
 // ── Modul 2: Perencanaan Pengawasan Individual ────────────────
 router.use('/penugasan', penugasanRoutes);
+
+// ── Modul 3: Pelaksanaan, KKA, Auditor's Copy ─────────────────
+router.use('/module3', module3Routes);
 
 export default router;

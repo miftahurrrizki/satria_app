@@ -8,7 +8,7 @@ import {
 } from '../controllers/organisasi.controller';
 
 const router = Router();
-const adminOnly = requireRole('admin_spi', 'it_admin');
+const adminOnly = requireRole('kepala_spi', 'admin_spi', 'it_admin');
 
 // ── Dropdown endpoints (simple list, no pagination) ──────────
 router.get('/dropdown/direktorat',       authenticate, getDirektoratsDropdown);

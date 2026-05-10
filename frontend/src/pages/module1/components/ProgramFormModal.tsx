@@ -5,6 +5,7 @@ import {
   Search, ChevronDown, Building2, FileText, ShieldCheck,
 } from 'lucide-react';
 import { annualPlansApi, auditorsApi, risksApi, workloadApi, organisasiApi, settingsApi, ceoLetterApi, CeoAreaWithLetter, CreatePlanPayload } from '../../../services/api';
+import { toInputDate } from '../../../utils/dateUtils';
 import { AnnualAuditPlan, AnnualAuditPlanDetail, Auditor, Departemen, Divisi, JenisProgram, KategoriProgram, RiskData, RiskLevelKode, StatusProgram } from '../../../types';
 import toast from 'react-hot-toast';
 
@@ -123,8 +124,8 @@ export default function ProgramFormModal({ tahun, editData, onClose, onSuccess }
         status_program:       (detailRes.status_program as StatusProgram) || 'Mandatory',
         auditee:              auditeeInitialized.current ? prev.auditee : (detailRes.auditee || ''),
         deskripsi:            detailRes.deskripsi || '',
-        tanggal_mulai:        detailRes.tanggal_mulai?.slice(0, 10) || '',
-        tanggal_selesai:      detailRes.tanggal_selesai?.slice(0, 10) || '',
+        tanggal_mulai:        toInputDate(detailRes.tanggal_mulai) || '',
+        tanggal_selesai:      toInputDate(detailRes.tanggal_selesai) || '',
         pengendali_teknis_ids: pengendaliIds,
         ketua_tim_ids:         ketuaIds,
         anggota_ids:           anggotaIds,
@@ -259,9 +260,21 @@ const { data: riskRes } = useQuery({
     if (auditeeInitialized.current) return;
     if (!detailRes?.auditee || departemenList.length === 0) return;
 
-    const auditeeText = detailRes.auditee.toLowerCase();
+    // Parse exact department names from stored string ("Divisi: Dept1, Dept2; Divisi2: Dept3")
+    // PENTING: jangan pakai includes() karena nama divisi bisa mengandung nama departemen
+    // sebagai substring (mis. divisi "Keselamatan dan Keamanan" mengandung "Keamanan").
+    const storedDeptNames = new Set<string>();
+    for (const group of detailRes.auditee.split(';')) {
+      const colonIdx = group.indexOf(':');
+      const deptPart = colonIdx === -1 ? group : group.slice(colonIdx + 1);
+      for (const name of deptPart.split(',')) {
+        const trimmed = name.trim().toLowerCase();
+        if (trimmed) storedDeptNames.add(trimmed);
+      }
+    }
+
     const matchedDeptIds = departemenList
-      .filter((dept) => auditeeText.includes(dept.nama.toLowerCase()))
+      .filter((dept) => storedDeptNames.has(dept.nama.toLowerCase()))
       .map((dept) => dept.id);
 
     // Tandai sudah diinisialisasi terlepas ada match atau tidak

@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, CheckCircle2, Clock,
+  Plus,
   Loader2, AlertCircle, ChevronLeft, ChevronRight,
   Users, CalendarDays, X, AlertTriangle, Hourglass, PlayCircle, Flag, Search,
   Briefcase, TrendingDown, Trash2, RotateCcw, Building2,
 } from 'lucide-react';
 import { annualPlansApi, kalenderKerjaApi, settingsApi } from '../../../services/api';
-import { AnnualAuditPlan, JenisProgram, StatusPKPT } from '../../../types';
+import { AnnualAuditPlan, JenisProgram } from '../../../types';
 import { useAuthStore } from '../../../store/auth.store';
+import { parseLocalDate } from '../../../utils/dateUtils';
 import toast from 'react-hot-toast';
 import ProgramFormModal from './ProgramFormModal';
 import ProgramDetailModal from './ProgramDetailModal';
@@ -20,11 +21,6 @@ const JENIS_BADGE: Record<JenisProgram, string> = {
   'Non PKPT': 'bg-purple-50 text-purple-700 border border-purple-200',
 };
 
-const STATUS_BADGE: Record<StatusPKPT, { cls: string; icon: React.ElementType }> = {
-  'Open':        { cls: 'bg-amber-50 text-amber-700 border border-amber-200',       icon: Clock },
-  'On Progress': { cls: 'bg-primary-50 text-primary-700 border border-primary-200', icon: PlayCircle },
-  'Closed':      { cls: 'bg-green-50 text-green-700 border border-green-200',        icon: CheckCircle2 },
-};
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
@@ -39,11 +35,10 @@ const TIMELINE_BADGE: Record<TimelineKey, { label: string; cls: string; icon: Re
 
 function deriveTimelineStatus(p: { tanggal_mulai?: string; tanggal_selesai?: string; completed_at?: string | null; status_pkpt?: string }): TimelineKey {
   if (p.status_pkpt === 'Closed') return 'done';
-  const mulai   = p.tanggal_mulai   ? new Date(p.tanggal_mulai)   : null;
-  const selesai = p.tanggal_selesai ? new Date(p.tanggal_selesai) : null;
-  if (!mulai || !selesai || Number.isNaN(mulai.getTime()) || Number.isNaN(selesai.getTime())) return 'not_started';
+  const mulai   = parseLocalDate(p.tanggal_mulai);
+  const selesai = parseLocalDate(p.tanggal_selesai);
+  if (!mulai || !selesai) return 'not_started';
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  mulai.setHours(0, 0, 0, 0); selesai.setHours(0, 0, 0, 0);
   if (today < mulai) return 'not_started';
   if (today > selesai) return 'overdue';
   const daysLeft = Math.ceil((selesai.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -51,14 +46,27 @@ function deriveTimelineStatus(p: { tanggal_mulai?: string; tanggal_selesai?: str
   return 'running';
 }
 
+function countAuditees(auditee: string | null | undefined): number {
+  if (!auditee?.trim()) return 0;
+  let total = 0;
+  for (const group of auditee.split('; ')) {
+    const colonIdx = group.indexOf(': ');
+    if (colonIdx === -1) { total += 1; }
+    else {
+      const deptPart = group.slice(colonIdx + 2).trim();
+      if (deptPart) total += deptPart.split(', ').length;
+    }
+  }
+  return total;
+}
+
 function deriveTimelineDuration(key: TimelineKey, p: { tanggal_mulai?: string; tanggal_selesai?: string }): string | null {
   const MS_DAY = 1000 * 60 * 60 * 24;
   const today  = new Date(); today.setHours(0, 0, 0, 0);
 
   if (key === 'running' || key === 'near_deadline') {
-    const mulai = p.tanggal_mulai ? new Date(p.tanggal_mulai) : null;
+    const mulai = parseLocalDate(p.tanggal_mulai);
     if (!mulai) return null;
-    mulai.setHours(0, 0, 0, 0);
     const days = Math.floor((today.getTime() - mulai.getTime()) / MS_DAY);
     if (days < 1)  return 'Hari ini';
     if (days < 30) return `${days} hari`;
@@ -68,9 +76,8 @@ function deriveTimelineDuration(key: TimelineKey, p: { tanggal_mulai?: string; t
   }
 
   if (key === 'overdue') {
-    const selesai = p.tanggal_selesai ? new Date(p.tanggal_selesai) : null;
+    const selesai = parseLocalDate(p.tanggal_selesai);
     if (!selesai) return null;
-    selesai.setHours(0, 0, 0, 0);
     const days = Math.floor((today.getTime() - selesai.getTime()) / MS_DAY);
     if (days < 1)  return 'Hari ini';
     if (days < 30) return `+${days} hari`;
@@ -88,7 +95,6 @@ export default function ProgramTab({ tahun }: Props) {
 
   const [search, setSearch]                         = useState('');
   const [jenisFilter, setJenisFilter]               = useState('');
-  const [statusFilter, setStatusFilter]             = useState('');
   const [kategoriFilter, setKategoriFilter]         = useState('');
   const [sifatProgramFilter, setSifatProgramFilter] = useState('');
   const [kategoriAnggaranFilter, setKategoriAnggaranFilter] = useState('');
@@ -115,13 +121,12 @@ export default function ProgramTab({ tahun }: Props) {
   const kategoriAnggaranOptions = useMemo(() => (kelompokRes ?? []).filter((k) => k.tipe === 'Kategori Anggaran' && k.is_active).map((k) => k.nilai), [kelompokRes]);
 
   const { data: planRes, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['annual-plans', { tahun, search, jenisFilter, statusFilter, kategoriFilter, sifatProgramFilter, kategoriAnggaranFilter, bulanFilter, page }],
+    queryKey: ['annual-plans', { tahun, search, jenisFilter, kategoriFilter, sifatProgramFilter, kategoriAnggaranFilter, bulanFilter, page }],
     queryFn: async () => {
       const res = await annualPlansApi.getAll({
         tahun,
         search: search || undefined,
         jenis_program: jenisFilter || undefined,
-        status_pkpt: statusFilter || undefined,
         kategori_program: kategoriFilter || undefined,
         status_program: sifatProgramFilter || undefined,
         kategori_anggaran: kategoriAnggaranFilter || undefined,
@@ -231,8 +236,8 @@ export default function ProgramTab({ tahun }: Props) {
 
   function fmtDate(d?: string) {
     if (!d) return '—';
-    const parsed = new Date(d);
-    if (Number.isNaN(parsed.getTime())) return '—';
+    const parsed = parseLocalDate(d);
+    if (!parsed || Number.isNaN(parsed.getTime())) return '—';
     return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
@@ -245,12 +250,12 @@ export default function ProgramTab({ tahun }: Props) {
   }
 
   const resetAllFilters = () => {
-    setSearch(''); setJenisFilter(''); setStatusFilter('');
+    setSearch(''); setJenisFilter('');
     setKategoriFilter(''); setSifatProgramFilter(''); setKategoriAnggaranFilter('');
     setBulanFilter(''); setPage(1);
   };
 
-  const hasFilters = search || jenisFilter || statusFilter || kategoriFilter || sifatProgramFilter || kategoriAnggaranFilter || bulanFilter;
+  const hasFilters = search || jenisFilter || kategoriFilter || sifatProgramFilter || kategoriAnggaranFilter || bulanFilter;
 
   return (
     <div className="space-y-5">
@@ -307,15 +312,6 @@ export default function ProgramTab({ tahun }: Props) {
             </select>
           </div>
           <div>
-            <label className="section-label block mb-1.5">Status PKPT</label>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="select-input">
-              <option value="">Semua Status</option>
-              <option value="Open">Open</option>
-              <option value="On Progress">On Progress</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
-          <div>
             <label className="section-label block mb-1.5">Kategori Program</label>
             <select value={kategoriFilter} onChange={(e) => { setKategoriFilter(e.target.value); setPage(1); }} className="select-input">
               <option value="">Semua Kategori</option>
@@ -353,11 +349,6 @@ export default function ProgramTab({ tahun }: Props) {
             {jenisFilter && (
               <span className="filter-chip bg-violet-50 border-violet-200 text-violet-700">
                 Jenis: {jenisFilter} <button onClick={() => { setJenisFilter(''); setPage(1); }}><X className="w-3 h-3" /></button>
-              </span>
-            )}
-            {statusFilter && (
-              <span className="filter-chip bg-amber-50 border-amber-200 text-amber-700">
-                Status: {statusFilter} <button onClick={() => { setStatusFilter(''); setPage(1); }}><X className="w-3 h-3" /></button>
               </span>
             )}
             {kategoriFilter && (
@@ -467,8 +458,8 @@ export default function ProgramTab({ tahun }: Props) {
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Jenis</th>
                 <th className="px-4 py-3">Judul Program</th>
-                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-center">Personil</th>
+                <th className="px-4 py-3 text-center">Auditee</th>
                 <th className="px-4 py-3 text-center">Est. Hari</th>
                 <th className="px-4 py-3 text-center">Man-Days</th>
                 <th className="px-4 py-3 text-right">Anggaran</th>
@@ -512,8 +503,6 @@ export default function ProgramTab({ tahun }: Props) {
                 </tr>
               ) : (
                 plans.map((plan, idx) => {
-                  const SBadge = STATUS_BADGE[plan.status_pkpt as StatusPKPT];
-                  const SIcon  = SBadge?.icon ?? Clock;
                   const rowNum = (page - 1) * LIMIT + idx + 1;
                   const timelineKey      = deriveTimelineStatus(plan as any);
                   const timelineInfo     = TIMELINE_BADGE[timelineKey];
@@ -534,15 +523,20 @@ export default function ProgramTab({ tahun }: Props) {
                       <td className="px-4 py-3 max-w-xs">
                         <p className="font-semibold text-slate-800 text-primary-600 break-words line-clamp-2">{plan.judul_program}</p>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`badge ${SBadge?.cls}`}>
-                          <SIcon className="w-3 h-3" /> {plan.status_pkpt}
-                        </span>
-                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className="inline-flex items-center justify-center gap-1 text-slate-600">
                           <Users className="w-3 h-3 text-slate-400" /> {plan.jumlah_personil ?? 0}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        {(() => {
+                          const cnt = countAuditees(plan.auditee);
+                          return cnt > 0 ? (
+                            <span className="inline-flex items-center justify-center gap-1 text-slate-600">
+                              <Building2 className="w-3 h-3 text-slate-400" /> {cnt}
+                            </span>
+                          ) : <span className="text-slate-300">—</span>;
+                        })()}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className="badge bg-slate-100 text-slate-700">
