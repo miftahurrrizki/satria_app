@@ -7,6 +7,8 @@ import {
   Direktorat, Divisi, Departemen, SasaranKorporat,
   AuditProgram, FaseItem, Rincian, Prosedur, Risiko, Tujuan, ProgramDetail,
   NasHealth, ProgramOverviewM3, HierarkiM3, EvidenceFile, NasFileEntry, ItemStatus,
+  KegiatanLampiran, HasilAudit, HasilAuditPatch, HasilAuditKategori, HasilAuditSeverity,
+  FaseItemDetail, RincianDetail, KegiatanSummary,
 } from '../types';
 
 /**
@@ -655,4 +657,80 @@ export const module3Api = {
   downloadEvidenceUrl: (evidenceId: string) => `/api/module3/evidence/${evidenceId}/download`,
   deleteEvidence: (evidenceId: string) =>
     api.delete<ApiResponse<null>>(`/module3/evidence/${evidenceId}`),
+
+  // ─── MODUL 3 V2 — Detail Kegiatan (Lampiran + Hasil Audit + Auto-save) ───
+
+  // Summary count semua kegiatan dalam program
+  getKegiatanSummary: (programId: string) =>
+    api.get<ApiResponse<KegiatanSummary[]>>(`/module3/programs/${programId}/kegiatan-summary`),
+
+  // FASE ITEM (Perencanaan / Pelaporan)
+  getFaseItemDetail: (faseItemId: string) =>
+    api.get<ApiResponse<FaseItemDetail>>(`/module3/fase-items/${faseItemId}/detail`),
+  patchFaseItemDeskripsi: (faseItemId: string, deskripsi: unknown | null) =>
+    api.patch<ApiResponse<{ saved_at: string }>>(`/module3/fase-items/${faseItemId}/deskripsi`, { deskripsi }),
+  patchFaseItemStatus: (faseItemId: string, status: 'tidak_dimulai' | 'dalam_proses' | 'selesai') =>
+    api.patch<ApiResponse<null>>(`/module3/fase-items/${faseItemId}/status`, { status }),
+  uploadFaseItemFile: (faseItemId: string, file: File, opts?: { nama?: string; subfolder?: string }) => {
+    const fd = new FormData();
+    // Text fields HARUS sebelum file — multer baca body saat destination callback dipanggil
+    if (opts?.subfolder) fd.append('subfolder', opts.subfolder);
+    if (opts?.nama) fd.append('nama', opts.nama);
+    fd.append('file', file);
+    return api.post<ApiResponse<KegiatanLampiran>>(
+      `/module3/fase-items/${faseItemId}/lampiran/file`, fd,
+      { headers: { 'Content-Type': 'multipart/form-data' }, maxContentLength: Infinity, maxBodyLength: Infinity },
+    );
+  },
+  createFaseItemLink: (faseItemId: string, data: { nama: string; url: string }) =>
+    api.post<ApiResponse<KegiatanLampiran>>(`/module3/fase-items/${faseItemId}/lampiran/link`, data),
+
+  // RINCIAN (Pelaksanaan langkah)
+  getRincianDetail: (rincianId: string) =>
+    api.get<ApiResponse<RincianDetail>>(`/module3/rincian/${rincianId}/detail`),
+  uploadRincianFile: (rincianId: string, file: File, opts?: { nama?: string; subfolder?: string }) => {
+    const fd = new FormData();
+    if (opts?.subfolder) fd.append('subfolder', opts.subfolder);
+    if (opts?.nama) fd.append('nama', opts.nama);
+    fd.append('file', file);
+    return api.post<ApiResponse<KegiatanLampiran>>(
+      `/module3/rincian/${rincianId}/lampiran/file`, fd,
+      { headers: { 'Content-Type': 'multipart/form-data' }, maxContentLength: Infinity, maxBodyLength: Infinity },
+    );
+  },
+  createRincianLink: (rincianId: string, data: { nama: string; url: string }) =>
+    api.post<ApiResponse<KegiatanLampiran>>(`/module3/rincian/${rincianId}/lampiran/link`, data),
+
+  // Hasil Audit
+  createHasilAudit: (rincianId: string, data: { kategori: HasilAuditKategori; severity?: HasilAuditSeverity | null }) =>
+    api.post<ApiResponse<HasilAudit>>(`/module3/rincian/${rincianId}/hasil-audit`, data),
+  patchHasilAudit: (hasilAuditId: string, patch: Partial<HasilAuditPatch>) =>
+    api.patch<ApiResponse<{ saved_at: string }>>(`/module3/hasil-audit/${hasilAuditId}`, patch),
+  deleteHasilAudit: (hasilAuditId: string) =>
+    api.delete<ApiResponse<null>>(`/module3/hasil-audit/${hasilAuditId}`),
+
+  // Lampiran ops
+  downloadLampiranUrl: (lampiranId: string) => `/api/module3/lampiran/${lampiranId}/download`,
+  viewLampiranUrl: (lampiranId: string) => `/api/module3/lampiran/${lampiranId}/download?inline=1`,
+  deleteLampiran: (lampiranId: string) =>
+    api.delete<ApiResponse<null>>(`/module3/lampiran/${lampiranId}`),
+
+  // NAS folder picker
+  listNasFolders: (programId: string) =>
+    api.get<ApiResponse<{
+      tree: NasFolderNode[];
+      folderInitialized: boolean;
+      basePath?: string;
+      programFolder?: string;
+    }>>(`/module3/programs/${programId}/nas/folders`),
+  createNasFolder: (programId: string, data: { parentRelativePath?: string; name: string }) =>
+    api.post<ApiResponse<{ relativePath: string; fullPath: string }>>(
+      `/module3/programs/${programId}/nas/folders`, data,
+    ),
+};
+
+export type NasFolderNode = {
+  name: string;
+  relativePath: string;
+  children: NasFolderNode[];
 };

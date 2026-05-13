@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  X, Loader2, Users, CalendarDays, AlertTriangle,
+  X, Loader2, Save, Users, CalendarDays, AlertTriangle,
   Search, ChevronDown, Building2, FileText, ShieldCheck,
 } from 'lucide-react';
 import { annualPlansApi, auditorsApi, risksApi, workloadApi, organisasiApi, settingsApi, ceoLetterApi, CeoAreaWithLetter, CreatePlanPayload } from '../../../services/api';
@@ -1145,7 +1145,7 @@ const { data: riskRes } = useQuery({
                 disabled={saveMut.isPending} 
                 className="btn-primary text-sm flex items-center gap-2 disabled:opacity-40"
               >
-                {saveMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isEdit ? 'Simpan Perubahan' : 'Simpan Draft'}
               </button>
             </div>

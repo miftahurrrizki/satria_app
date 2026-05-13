@@ -22,6 +22,7 @@ import PengawasanIndividualPage from './pages/module2/PengawasanIndividualPage';
 
 // ── Modul 3: Pelaksanaan Audit & Kertas Kerja ─────────────────
 import PelaksanaanPage from './pages/module3/PelaksanaanPage';
+import EditKegiatanPage from './pages/module3/EditKegiatanPage';
 
 // ── Modul 4: Pelaporan & Komunikasi Hasil ────────────────────
 import PelaporanPage from './pages/module4/PelaporanPage';
@@ -37,6 +38,7 @@ import CACMPage from './pages/module7/CACMPage';
 
 // ── Pengaturan Sistem (Master Data Modul 1) ──────────────────
 import PengaturanSistemPage from './pages/settings/PengaturanSistemPage';
+import { ConfirmProvider } from './components/shared/ConfirmDialog';
 
 // ── Route Guards ──────────────────────────────────────────────
 
@@ -79,6 +81,7 @@ function RoleRoute({ children, allowed }: { children: React.ReactNode; allowed: 
 
 export default function App() {
   return (
+    <ConfirmProvider>
     <BrowserRouter>
       <Routes>
         {/* Public */}
@@ -147,6 +150,14 @@ export default function App() {
               </RoleRoute>
             }
           />
+          <Route
+            path="pelaksanaan/program/:programId/kegiatan/:kegiatanType/:kegiatanId"
+            element={
+              <RoleRoute allowed={['kepala_spi', 'pengendali_teknis', 'anggota_tim', 'admin_spi']}>
+                <EditKegiatanPage />
+              </RoleRoute>
+            }
+          />
 
           {/* ── Modul 4: Pelaporan & Komunikasi Hasil ─────────── */}
           <Route
@@ -209,5 +220,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ConfirmProvider>
   );
 }

@@ -1,28 +1,27 @@
 /**
- * Program Detail (Modul 3) — shell yang menampung 4 tab.
+ * Program Detail (Modul 3) — shell yang menampung 2 tab.
  * UI selaras Modul 2: header card dengan badge + lokasi + stat cards, lalu tab navigator.
+ *
+ * Restruktur: 4 tab → 2 tab
+ *   - Project Management (Tab1)
+ *   - Repository (renamed dari Auditor's Copy / Tab3)
+ *   - Pengujian + KKA Simpulan dihapus → fungsinya digabung ke halaman edit kegiatan full-page
  */
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeft, Calendar, Users, FileText, FolderOpen, ListChecks, BookOpen, BarChart3,
-  Clock, TrendingUp, CheckCircle2,
+  ArrowLeft, Calendar, Users, BarChart3,
+  Clock, TrendingUp, CheckCircle2, Circle, List,
 } from 'lucide-react';
 import { module3Api } from '../../../services/api';
 import { fmtDate } from './helpers';
 
-import Tab1ProjectMgmt   from './Tab1ProjectMgmt';
-import Tab2Pengujian     from './Tab2Pengujian';
-import Tab3AuditorCopy   from './Tab3AuditorCopy';
-import Tab4KkaSimpulan   from './Tab4KkaSimpulan';
+import Tab1ProjectMgmt from './Tab1ProjectMgmt';
 
-type TabKey = 'pm' | 'pengujian' | 'auditor-copy' | 'kka';
+type TabKey = 'pm';
 
 const TABS: { key: TabKey; label: string; Icon: React.ElementType }[] = [
-  { key: 'pm',           label: 'Project Management',   Icon: BarChart3  },
-  { key: 'pengujian',    label: 'Pelaksanaan Pengujian',Icon: ListChecks },
-  { key: 'auditor-copy', label: "Auditor's Copy",       Icon: FolderOpen },
-  { key: 'kka',          label: 'KKA & Simpulan',       Icon: BookOpen   },
+  { key: 'pm', label: 'Project Management', Icon: BarChart3 },
 ];
 
 export default function ProgramDetail({
@@ -57,8 +56,9 @@ export default function ProgramDetail({
     const total = allItems.length;
     const selesai = allItems.filter((i) => i.status === 'selesai').length;
     const dalamProses = allItems.filter((i) => i.status === 'dalam_proses').length;
+    const belumMulai = total - selesai - dalamProses;
     const persen = total > 0 ? Math.round((selesai / total) * 100) : 0;
-    return { total, selesai, dalamProses, persen };
+    return { total, selesai, dalamProses, belumMulai, persen };
   }, [hier]);
 
   return (
@@ -110,13 +110,20 @@ export default function ProgramDetail({
 
       {/* Stat strip — gaya StatCard Modul 1 Man-Days */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard
-            Icon={TrendingUp}
-            value={`${progressStats?.persen ?? 0}%`}
-            label="Progress"
-            sub={`${progressStats?.selesai ?? 0}/${progressStats?.total ?? 0} item selesai`}
-            tone="primary"
+            Icon={List}
+            value={progressStats?.total ?? 0}
+            label="Total Item"
+            sub="kegiatan & langkah"
+            tone="slate"
+          />
+          <StatCard
+            Icon={Circle}
+            value={progressStats?.belumMulai ?? 0}
+            label="Belum Mulai"
+            sub="item"
+            tone="blue"
           />
           <StatCard
             Icon={Clock}
@@ -133,18 +140,18 @@ export default function ProgramDetail({
             tone="green"
           />
           <StatCard
-            Icon={FileText}
-            value={overview.total_evidence ?? 0}
-            label="Evidence Diunggah"
-            sub="file"
-            tone="blue"
-          />
-          <StatCard
             Icon={Users}
             value={overview.total_anggota_tim ?? 0}
             label="Anggota Tim"
-            sub="orang"
+            sub="auditor terlibat"
             tone="slate"
+          />
+          <StatCard
+            Icon={TrendingUp}
+            value={`${progressStats?.persen ?? 0}%`}
+            label="Progress"
+            sub={`${progressStats?.selesai ?? 0}/${progressStats?.total ?? 0} item selesai`}
+            tone="primary"
           />
         </div>
       )}
@@ -181,10 +188,7 @@ export default function ProgramDetail({
 
       {/* Tab body */}
       <div>
-        {tab === 'pm'           && <Tab1ProjectMgmt programId={programId} />}
-        {tab === 'pengujian'    && <Tab2Pengujian programId={programId} />}
-        {tab === 'auditor-copy' && <Tab3AuditorCopy programId={programId} folderName={overview?.nas_folder_name ?? null} />}
-        {tab === 'kka'          && <Tab4KkaSimpulan programId={programId} />}
+        {tab === 'pm' && <Tab1ProjectMgmt programId={programId} />}
       </div>
     </div>
   );

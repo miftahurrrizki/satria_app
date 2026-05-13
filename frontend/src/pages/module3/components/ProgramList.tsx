@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Home, Search, Calendar, ChevronRight, FolderOpen, ClipboardList, X, AlertTriangle, Loader2,
+  Home, Search, Calendar, ChevronRight, ChevronDown, FolderOpen, ClipboardList, X, AlertTriangle, Loader2,
 } from 'lucide-react';
 import { penugasanApi } from '../../../services/api';
 import { AuditProgram } from '../../../types';
@@ -25,18 +25,21 @@ const Spinner = ({ className = 'w-5 h-5' }: { className?: string }) => (
 );
 
 const YearFilter = ({ value, onChange }: { value: number; onChange: (y: number) => void }) => (
-  <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-primary-400 transition-all">
+  <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
     <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
       <Calendar className="w-4 h-4 text-slate-500" />
       <span className="text-xs font-bold text-slate-600 uppercase tracking-wider hidden sm:block">Tahun</span>
     </div>
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
-    >
-      {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
-    </select>
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
+      >
+        {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <ChevronRight className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
+    </div>
   </div>
 );
 

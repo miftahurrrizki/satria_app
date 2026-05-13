@@ -4,7 +4,7 @@ import {
   Users, Building2, Layers2, Plus, Search, RefreshCw, Shield, Eye, EyeOff,
   ToggleLeft, ToggleRight, Trash2, KeyRound, Edit2, X, Copy, Check,
   Layers, CheckSquare, Square, Calendar, FileText, PieChart, LayoutDashboard,
-  MapPin, BadgeInfo, Mail, ChevronLeft, ChevronRight, AlertTriangle,
+  MapPin, BadgeInfo, Mail, ChevronLeft, ChevronRight, AlertTriangle, Save, Loader2,
 } from 'lucide-react';
 import { usersApi, UserRow, CreateUserPayload, organisasiApi, userStatsApi, JABATAN_OPTIONS } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -509,6 +509,7 @@ function EditUserModal({ user, onClose }: { user: UserRow; onClose: () => void }
         <div className="flex gap-3 p-6 pt-0">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !nikValid} className="btn-primary flex-1 justify-center">
+            {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {mutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
@@ -660,7 +661,8 @@ function ModuleAccessModal({ user, onClose }: { user: UserRow; onClose: () => vo
         <div className="flex gap-3 p-6 pt-0">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Batal</button>
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1 justify-center">
-            Simpan Perubahan
+            {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {mutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
       </div>

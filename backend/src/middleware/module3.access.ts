@@ -46,9 +46,9 @@ async function isTeamMember(userId: string, programId: string): Promise<boolean>
   return Boolean(r.rows[0]?.exists);
 }
 
-/** Resolve programId dari source berbeda (prosedur, rincian, evidence). */
+/** Resolve programId dari source berbeda (prosedur, rincian, evidence, fase_item, lampiran, hasil_audit). */
 async function resolveProgramId(
-  source: 'program' | 'prosedur' | 'rincian' | 'evidence',
+  source: 'program' | 'prosedur' | 'rincian' | 'evidence' | 'fase_item' | 'lampiran' | 'hasil_audit',
   id: string,
 ): Promise<string | null> {
   let sql: string;
@@ -73,13 +73,36 @@ async function resolveProgramId(
     case 'evidence':
       sql = `SELECT program_id FROM audit.workpaper_evidence WHERE id = $1`;
       break;
+    case 'fase_item':
+      sql = `SELECT program_id FROM penugasan.fase_items WHERE id = $1`;
+      break;
+    case 'lampiran':
+      // Lampiran polymorphic — resolve via fase_item OR rincian
+      sql = `SELECT COALESCE(fi.program_id, tu.program_id) AS program_id
+             FROM audit.kegiatan_lampiran l
+             LEFT JOIN penugasan.fase_items fi ON fi.id = l.fase_item_id
+             LEFT JOIN penugasan.rincian r     ON r.id  = l.rincian_id
+             LEFT JOIN penugasan.prosedur pr   ON pr.id = r.prosedur_id
+             LEFT JOIN penugasan.risiko ri     ON ri.id = pr.risiko_id
+             LEFT JOIN penugasan.tujuan tu     ON tu.id = ri.tujuan_id
+             WHERE l.id = $1 AND l.deleted_at IS NULL`;
+      break;
+    case 'hasil_audit':
+      sql = `SELECT tu.program_id
+             FROM audit.kegiatan_hasil_audit h
+             JOIN penugasan.rincian r    ON r.id  = h.rincian_id
+             JOIN penugasan.prosedur pr  ON pr.id = r.prosedur_id
+             JOIN penugasan.risiko ri    ON ri.id = pr.risiko_id
+             JOIN penugasan.tujuan tu    ON tu.id = ri.tujuan_id
+             WHERE h.id = $1 AND h.deleted_at IS NULL`;
+      break;
   }
   const r = await query<{ program_id: string }>(sql, [id]);
   return r.rows[0]?.program_id ?? null;
 }
 
 function makeGuard(
-  source: 'program' | 'prosedur' | 'rincian' | 'evidence',
+  source: 'program' | 'prosedur' | 'rincian' | 'evidence' | 'fase_item' | 'lampiran' | 'hasil_audit',
   paramName: string,
 ): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -111,7 +134,10 @@ function makeGuard(
   };
 }
 
-export const requireProgramAccess  = (param = 'programId')  => makeGuard('program', param);
-export const requireProsedurAccess = (param = 'prosedurId') => makeGuard('prosedur', param);
-export const requireRincianAccess  = (param = 'rincianId')  => makeGuard('rincian', param);
-export const requireEvidenceAccess = (param = 'evidenceId') => makeGuard('evidence', param);
+export const requireProgramAccess    = (param = 'programId')    => makeGuard('program', param);
+export const requireProsedurAccess   = (param = 'prosedurId')   => makeGuard('prosedur', param);
+export const requireRincianAccess    = (param = 'rincianId')    => makeGuard('rincian', param);
+export const requireEvidenceAccess   = (param = 'evidenceId')   => makeGuard('evidence', param);
+export const requireFaseItemAccess   = (param = 'faseItemId')   => makeGuard('fase_item', param);
+export const requireLampiranAccess   = (param = 'lampiranId')   => makeGuard('lampiran', param);
+export const requireHasilAuditAccess = (param = 'hasilAuditId') => makeGuard('hasil_audit', param);

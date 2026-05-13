@@ -17,9 +17,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  Calendar, ChevronDown, Plus, Edit2, Trash2,
+  Calendar, ChevronDown, ChevronRight, Plus, Edit2, Trash2,
   AlertTriangle, ClipboardList, Target, Users, Clock, TrendingUp, ArrowLeft,
-  X, Check, Loader2, Search, FileText, BookOpen, Info, Flag, Home,
+  X, Check, Loader2, Search, FileText, BookOpen, Info, Flag, Home, Save,
 } from 'lucide-react';
 
 import { penugasanApi, annualPlansApi, settingsApi } from '../../services/api';
@@ -162,15 +162,18 @@ const PicCheckboxDropdown: React.FC<{ teamPics: PicUser[]; value: string[]; onCh
 // ─────────────────────────────────────────────────────────────────────────────
 
 const YearFilter: React.FC<{ value: number; onChange: (y: number) => void }> = ({ value, onChange }) => (
-  <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-primary-400 transition-all">
+  <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
     <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
       <Calendar className="w-4 h-4 text-slate-500" />
       <span className="text-xs font-bold text-slate-600 uppercase tracking-wider hidden sm:block">Tahun</span>
     </div>
-    <select value={value} onChange={(e) => onChange(Number(e.target.value))}
-      className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors">
-      {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
-    </select>
+    <div className="relative">
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))}
+        className="appearance-none bg-transparent text-slate-800 text-sm font-bold pl-3 pr-8 py-2 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors">
+        {YEAR_OPTIONS.map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <ChevronRight className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" />
+    </div>
   </div>
 );
 
@@ -441,7 +444,7 @@ const NodeEditModal: React.FC<{
           )}
           <button onClick={onClose} className="btn-secondary">Batal</button>
           <button onClick={handleSubmit} disabled={!title.trim() || saving} className="btn-primary">
-            {saving ? <Spinner className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+            {saving ? <Spinner className="w-4 h-4" /> : isEdit ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {isEdit ? 'Simpan Perubahan' : `Tambah ${KIND_LABEL[kind]}`}
           </button>
         </>

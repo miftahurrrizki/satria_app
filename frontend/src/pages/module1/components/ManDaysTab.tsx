@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import { kalenderKerjaApi, KalenderBulan } from '../../../services/api';
 import { useAuthStore } from '../../../store/auth.store';
+import { useConfirm } from '../../../components/shared/ConfirmDialog';
 
 const BULAN_LABEL = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
 const BULAN_FULL  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -47,6 +48,7 @@ export default function ManDaysTab({ tahun }: { tahun: number }) {
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'kepala_spi' || role === 'admin_spi';
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const { data, isLoading } = useQuery({
     queryKey: ['kalender-kerja', tahun],
@@ -227,7 +229,23 @@ export default function ManDaysTab({ tahun }: { tahun: number }) {
             )}
             {header && !isLocked && (
               <button
-                onClick={() => { if (confirm(`Kunci kalender tahun ${tahun}?`)) lockMut.mutate(); }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    variant: 'warning',
+                    title: `Kunci Kalender Tahun ${tahun}?`,
+                    description: (
+                      <>
+                        Setelah dikunci, <b>jumlah hari pemeriksaan & kapasitas tahunan</b> tidak
+                        dapat diubah lagi. Pagu tahunan akan menjadi acuan tetap untuk seluruh
+                        Modul 2 (Perencanaan Pengawasan Individual).
+                        <br /><br />
+                        Pastikan seluruh data sudah final dan disetujui.
+                      </>
+                    ),
+                    confirmLabel: 'Ya, Kunci Pagu',
+                  });
+                  if (ok) lockMut.mutate();
+                }}
                 disabled={lockMut.isPending || dirty}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-semibold hover:bg-amber-100 disabled:opacity-50 transition-colors"
               >
@@ -236,7 +254,24 @@ export default function ManDaysTab({ tahun }: { tahun: number }) {
             )}
             {header && isLocked && (
               <button
-                onClick={() => { if (confirm('Buka kunci kalender?')) unlockMut.mutate(); }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    variant: 'warning',
+                    title: 'Buka Kunci Kalender?',
+                    description: (
+                      <>
+                        Kalender pagu akan dapat diedit kembali. Lakukan ini hanya jika ada
+                        <b> perubahan resmi</b> yang perlu disesuaikan (mis. perubahan jumlah
+                        hari libur nasional atau kapasitas tim).
+                        <br /><br />
+                        Perubahan pagu setelah Modul 2 berjalan dapat memengaruhi alokasi
+                        Man-Days yang sudah ditetapkan.
+                      </>
+                    ),
+                    confirmLabel: 'Ya, Buka Kunci',
+                  });
+                  if (ok) unlockMut.mutate();
+                }}
                 disabled={unlockMut.isPending}
                 className="btn-secondary"
               >

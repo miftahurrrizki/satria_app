@@ -620,3 +620,111 @@ export interface NasFileEntry {
   modifiedAt: string;
   relativePath: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modul 3 V2 — Detail Kegiatan (Lampiran + Hasil Audit)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LampiranTipe = 'file' | 'link';
+export type LinkSource = 'google_drive' | 'onedrive' | 'sharepoint' | 'dropbox' | 'other';
+
+export interface KegiatanLampiran {
+  id: string;
+  tipe: LampiranTipe;
+  nama: string;
+  nama_asli: string | null;
+  file_path: string | null;
+  ukuran_byte: number | null;
+  mime_type: string | null;
+  url: string | null;
+  link_source: LinkSource | null;
+  uploaded_by: string;
+  uploaded_by_nama?: string;
+  created_at: string;
+}
+
+export type HasilAuditKategori = 'konfirmasi_positif' | 'temuan' | 'ofi';
+export type HasilAuditSeverity = 'high' | 'medium' | 'low';
+
+/** Rich text JSON document (TipTap). Disimpan di kolom JSONB. */
+export type RichTextDoc = unknown;
+
+export interface HasilAudit {
+  id: string;
+  kategori: HasilAuditKategori;
+  severity: HasilAuditSeverity | null;
+  urutan: number;
+  judul: string | null;
+  // Rich text fields — isi tergantung kategori (yang lain null)
+  kondisi: RichTextDoc | null;
+  kriteria: RichTextDoc | null;
+  sebab: RichTextDoc | null;
+  akibat: RichTextDoc | null;
+  rekomendasi: RichTextDoc | null;
+  saran: RichTextDoc | null;
+  peningkatan: RichTextDoc | null;
+  created_by: string;
+  created_by_nama?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Patch payload for hasil audit auto-save (all optional). */
+export interface HasilAuditPatch {
+  judul: string | null;
+  kondisi: RichTextDoc | null;
+  kriteria: RichTextDoc | null;
+  sebab: RichTextDoc | null;
+  akibat: RichTextDoc | null;
+  rekomendasi: RichTextDoc | null;
+  saran: RichTextDoc | null;
+  peningkatan: RichTextDoc | null;
+  severity: HasilAuditSeverity | null;
+  urutan: number;
+}
+
+export interface FaseItemDetail {
+  id: string;
+  program_id: string;
+  fase: 'perencanaan' | 'pelaporan';
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  deskripsi: RichTextDoc | null;
+  nas_folder_name: string | null;
+  pics: { user_id: string; nama: string }[];
+  lampiran: KegiatanLampiran[];
+}
+
+export interface RincianDetail {
+  id: string;
+  prosedur_id: string;
+  program_id: string;
+  title: string;
+  order_index: number;
+  status: ItemStatus;
+  est_hari: number | null;
+  man_days: number | null;
+  tanggal_jatuh_tempo: string | null;
+  catatan_pengujian: string | null;
+  tujuan_title: string;
+  risiko_title: string;
+  prosedur_title: string;
+  nas_folder_name: string | null;
+  pics: { user_id: string; nama: string }[];
+  lampiran: KegiatanLampiran[];
+  hasil_audit: HasilAudit[];
+}
+
+export interface KegiatanSummary {
+  kegiatan_id: string;
+  kegiatan_type: 'fase_item' | 'rincian';
+  lampiran_count: number;
+  konfirmasi_count: number;
+  temuan_count: number;
+  ofi_count: number;
+  temuan_high_count: number;
+}

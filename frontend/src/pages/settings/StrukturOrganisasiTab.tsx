@@ -13,7 +13,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Pencil, ChevronDown, ChevronRight, Building2,
-  Layers, MoveRight, Search, X, Check, AlertTriangle, ToggleLeft, ToggleRight,
+  Layers, MoveRight, Search, X, Check, AlertTriangle, ToggleLeft, ToggleRight, Save, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { organisasiApi, DivisiMgmt, DepartemenMgmt } from '../../services/api';
@@ -537,6 +537,7 @@ function DivisiModal({ form: initial, direktoratList, saving, onClose, onSave }:
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50/60">
           <button onClick={onClose} className="btn-secondary" disabled={saving}>Batal</button>
           <button onClick={() => onSave(form)} disabled={!valid || saving} className="btn-primary">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isEdit ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {saving ? 'Menyimpan…' : (isEdit ? 'Simpan' : 'Tambahkan')}
           </button>
         </div>
@@ -635,6 +636,7 @@ function DepartemenModal({ form: initial, mode, divisiList, saving, onClose, onS
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50/60">
           <button onClick={onClose} className="btn-secondary" disabled={saving}>Batal</button>
           <button onClick={() => onSave(form)} disabled={!valid || saving} className="btn-primary">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === 'add' ? <Plus className="w-4 h-4" /> : mode === 'move' ? <MoveRight className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {saving ? 'Menyimpan…' : mode === 'add' ? 'Tambahkan' : mode === 'move' ? 'Pindahkan' : 'Simpan'}
           </button>
         </div>

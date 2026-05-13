@@ -26,14 +26,31 @@ import logger from '../../utils/logger';
 export async function getProgramOverview(req: Request, res: Response, next: NextFunction) {
   try {
     const programId = req.programId!;
+    // total_anggota_tim = jumlah DISTINCT user yang menjadi PIC pada kegiatan
+    // di program ini (gabungan dari fase_item_pics ∪ rincian_pics).
+    // Berbeda dari "tim Modul 1" yang dialokasikan di annual_plan_team.
     const sql = `
       SELECT
         ap.id, ap.annual_plan_id, ap.tahun, ap.auditee, ap.status,
         ap.nas_folder_name, ap.nas_initialized_at,
         aap.judul_program, aap.tanggal_mulai, aap.tanggal_selesai,
         aap.jenis_program, aap.kategori_program, aap.status_program,
-        (SELECT COUNT(*) FROM pkpt.annual_plan_team apt
-           WHERE apt.annual_plan_id = ap.annual_plan_id) AS total_anggota_tim,
+        (
+          SELECT COUNT(DISTINCT user_id) FROM (
+            SELECT fip.user_id
+            FROM penugasan.fase_items fi
+            JOIN penugasan.fase_item_pics fip ON fip.item_id = fi.id
+            WHERE fi.program_id = ap.id
+            UNION
+            SELECT rp.user_id
+            FROM penugasan.rincian r
+            JOIN penugasan.prosedur pr ON pr.id = r.prosedur_id
+            JOIN penugasan.risiko ri   ON ri.id = pr.risiko_id
+            JOIN penugasan.tujuan tu   ON tu.id = ri.tujuan_id
+            JOIN penugasan.rincian_pics rp ON rp.rincian_id = r.id
+            WHERE tu.program_id = ap.id
+          ) AS pic_union
+        ) AS total_anggota_tim,
         v.total_langkah, v.langkah_selesai, v.langkah_dalam_proses, v.langkah_belum,
         v.progress_persen, v.total_evidence, v.prosedur_dengan_simpulan
       FROM penugasan.audit_programs ap
@@ -341,7 +358,12 @@ export async function uploadEvidence(req: Request, res: Response, next: NextFunc
         req.user!.id,
       ],
     );
-    res.status(201).json({ success: true, data: r.rows[0] });
+    // Tambahkan absolute path NAS untuk display di FE
+    const progRes = await query<{ nas_folder_name: string }>(
+      `SELECT nas_folder_name FROM penugasan.audit_programs WHERE id = $1`, [programId],
+    );
+    const nasAbsolutePath = nas.buildAbsoluteDisplay(progRes.rows[0].nas_folder_name, relativePath);
+    res.status(201).json({ success: true, data: { ...r.rows[0], nas_absolute_path: nasAbsolutePath } });
   } catch (err) {
     // Kalau insert DB gagal tapi file sudah masuk NAS → bersihkan
     if (req.file?.path) {
@@ -473,6 +495,62 @@ export async function listProgramNas(req: Request, res: Response, next: NextFunc
     }
     const entries = await nas.listFolder(folder, subPath);
     res.json({ success: true, data: entries, folderInitialized: true });
+  } catch (err) { next(err); }
+}
+
+/** GET /api/module3/programs/:programId/nas/folders
+ *  Return tree semua folder di program — untuk folder picker di UI upload. */
+export async function listProgramFolders(req: Request, res: Response, next: NextFunction) {
+  try {
+    const programId = req.programId!;
+    const r = await query<{ nas_folder_name: string | null }>(
+      `SELECT nas_folder_name FROM penugasan.audit_programs WHERE id = $1`,
+      [programId],
+    );
+    const folder = r.rows[0]?.nas_folder_name;
+    if (!folder) {
+      return res.json({ success: true, data: { tree: [], folderInitialized: false } });
+    }
+    const tree = await nas.listFoldersTree(folder);
+    res.json({
+      success: true,
+      data: { tree, folderInitialized: true, basePath: nas.getBasePath(), programFolder: folder },
+    });
+  } catch (err) { next(err); }
+}
+
+/** POST /api/module3/programs/:programId/nas/folders
+ *  Body: { parentRelativePath?: string, name: string }
+ *  Buat folder custom di dalam folder program. */
+export async function createProgramFolder(req: Request, res: Response, next: NextFunction) {
+  try {
+    const programId = req.programId!;
+    const { parentRelativePath = '', name } = req.body as { parentRelativePath?: string; name?: string };
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: 'Nama folder wajib diisi.' });
+    }
+    const r = await query<{ nas_folder_name: string | null; judul_program: string }>(
+      `SELECT ap.nas_folder_name, aap.judul_program
+       FROM penugasan.audit_programs ap
+       JOIN pkpt.annual_audit_plans aap ON aap.id = ap.annual_plan_id
+       WHERE ap.id = $1`,
+      [programId],
+    );
+    if (!r.rowCount) return res.status(404).json({ success: false, message: 'Program tidak ditemukan.' });
+
+    let folderName = r.rows[0].nas_folder_name;
+    if (!folderName) {
+      folderName = nas.sanitizeName(r.rows[0].judul_program);
+      await nas.ensureProgramFolder(folderName);
+      await query(
+        `UPDATE penugasan.audit_programs
+         SET nas_folder_name = $1, nas_initialized_at = NOW(), updated_at = NOW()
+         WHERE id = $2`,
+        [folderName, programId],
+      );
+    }
+    const created = await nas.createCustomFolder(folderName, parentRelativePath, name.trim());
+    res.status(201).json({ success: true, data: created });
   } catch (err) { next(err); }
 }
 

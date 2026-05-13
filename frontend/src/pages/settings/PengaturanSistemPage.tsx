@@ -660,8 +660,9 @@ function BobotTab({ tahun }: { tahun: number }) {
           <button
             onClick={() => upsertMut.mutate()}
             disabled={upsertMut.isPending}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
+            {upsertMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {upsertMut.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
@@ -950,8 +951,9 @@ function FormModal({
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {loading ? 'Menyimpan...' : 'Simpan'}
           </button>
         </div>

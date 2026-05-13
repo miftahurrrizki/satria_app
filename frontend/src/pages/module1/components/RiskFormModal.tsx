@@ -1,8 +1,8 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
-  X, Loader2, AlertCircle, ChevronDown, CheckCircle2, 
-  Fingerprint, Building2, Target, AlertTriangle, Activity, ShieldCheck 
+  X, Loader2, Save, AlertCircle, ChevronDown, CheckCircle2,
+  Fingerprint, Building2, Target, AlertTriangle, Activity, ShieldCheck
 } from 'lucide-react';
 import { risksApi, organisasiApi, settingsApi } from '../../../services/api';
 import { RiskData, SasaranKorporat } from '../../../types';
@@ -464,7 +464,7 @@ export default function RiskFormModal({ tahun, editData, onClose, onSuccess }: P
                 disabled={saveMut.isPending || !isValid}
                 className="px-6 py-2.5 text-[14px] font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isEdit ? 'Simpan Perubahan' : 'Simpan Data'}
               </button>
             </div>

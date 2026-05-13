@@ -12,16 +12,17 @@
  *   - Overdue (deadline lewat & belum selesai) → merah (red)
  */
 import { useMemo, useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   List, GanttChart, Loader2, X, Save,
   Edit2, Flag, AlertTriangle, ClipboardList, Target, CalendarClock,
-  BookOpen, FileText, Lock, CheckCircle2, Hourglass, PlayCircle,
+  BookOpen, FileText, Lock, CheckCircle2, Hourglass, PlayCircle, Paperclip, Lightbulb,
 } from 'lucide-react';
 
 import { module3Api, penugasanApi } from '../../../services/api';
-import { HierarkiM3, RincianM3, FaseItemM3, ItemStatus } from '../../../types';
+import { HierarkiM3, RincianM3, FaseItemM3, ItemStatus, KegiatanSummary } from '../../../types';
 import { fmtDate, StatusBadge, STATUS_OPTIONS, getBarStyle, isOverdue } from './helpers';
 import { parseLocalDate } from '../../../utils/dateUtils';
 
@@ -120,14 +121,32 @@ function TimelineBadge({ status, deadline }: { status: ItemStatus; deadline: str
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Tab1ProjectMgmt({ programId }: { programId: string }) {
+  const navigate = useNavigate();
   const [view, setView] = useState<ViewKind>('list');
-  const [editing, setEditing] = useState<EditTarget | null>(null);
+
+  // Klik nama kegiatan → buka halaman edit full-page
+  const handleEdit = (t: EditTarget) => {
+    const type = t.kind === 'fase' ? 'fase-item' : 'rincian';
+    navigate(`/pelaksanaan/program/${programId}/kegiatan/${type}/${t.data.id}`);
+  };
 
   const { data: hier, isLoading } = useQuery({
     queryKey: ['m3-hierarki', programId],
     queryFn: () => module3Api.getHierarki(programId).then((r) => r.data.data),
     staleTime: 5_000,
   });
+
+  // Summary count per kegiatan (untuk badge KP / Temuan / OFI / Lampiran)
+  const { data: summaryRows } = useQuery({
+    queryKey: ['m3-kegiatan-summary', programId],
+    queryFn: () => module3Api.getKegiatanSummary(programId).then((r) => r.data.data),
+    staleTime: 10_000,
+  });
+  const summaryMap = useMemo(() => {
+    const m = new Map<string, KegiatanSummary>();
+    for (const s of summaryRows ?? []) m.set(s.kegiatan_id, s);
+    return m;
+  }, [summaryRows]);
 
   const empty = !hier || (
     (!hier.perencanaan?.length) && (!hier.pelaksanaan?.length) && (!hier.pelaporan?.length)
@@ -182,19 +201,11 @@ export default function Tab1ProjectMgmt({ programId }: { programId: string }) {
           )}
 
           {view === 'list' ? (
-            <ListView hier={hier!} onEdit={setEditing} />
+            <ListView hier={hier!} onEdit={handleEdit} summaryMap={summaryMap} />
           ) : (
-            <GanttView hier={hier!} onEdit={setEditing} />
+            <GanttView hier={hier!} onEdit={handleEdit} />
           )}
         </div>
-      )}
-
-      {editing && (
-        <EditModal
-          target={editing}
-          programId={programId}
-          onClose={() => setEditing(null)}
-        />
       )}
     </div>
   );
@@ -220,7 +231,11 @@ function ViewBtn({ active, onClick, icon, label }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // LIST VIEW — 3 section + click row to edit
 // ─────────────────────────────────────────────────────────────────────────────
-function ListView({ hier, onEdit }: { hier: HierarkiM3; onEdit: (t: EditTarget) => void }) {
+function ListView({ hier, onEdit, summaryMap }: {
+  hier: HierarkiM3;
+  onEdit: (t: EditTarget) => void;
+  summaryMap: Map<string, KegiatanSummary>;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="table-base min-w-[900px]">
@@ -242,7 +257,9 @@ function ListView({ hier, onEdit }: { hier: HierarkiM3; onEdit: (t: EditTarget) 
             <EmptySubrow text="Tidak ada kegiatan perencanaan" />
           ) : (
             hier.perencanaan.map((it, i) => (
-              <FaseRow key={it.id} item={it} seq={i + 1} onClick={() => onEdit({ kind: 'fase', data: it })} />
+              <FaseRow key={it.id} item={it} seq={i + 1}
+                summary={summaryMap.get(it.id)}
+                onClick={() => onEdit({ kind: 'fase', data: it })} />
             ))
           )}
 
@@ -251,7 +268,7 @@ function ListView({ hier, onEdit }: { hier: HierarkiM3; onEdit: (t: EditTarget) 
           {hier.pelaksanaan.length === 0 ? (
             <EmptySubrow text="Tidak ada hierarki pelaksanaan" />
           ) : (
-            <PelaksanaanRows hier={hier.pelaksanaan} onEdit={onEdit} />
+            <PelaksanaanRows hier={hier.pelaksanaan} onEdit={onEdit} summaryMap={summaryMap} />
           )}
 
           {/* PELAPORAN section */}
@@ -260,13 +277,49 @@ function ListView({ hier, onEdit }: { hier: HierarkiM3; onEdit: (t: EditTarget) 
             <EmptySubrow text="Tidak ada kegiatan pelaporan" />
           ) : (
             hier.pelaporan.map((it, i) => (
-              <FaseRow key={it.id} item={it} seq={i + 1} onClick={() => onEdit({ kind: 'fase', data: it })} />
+              <FaseRow key={it.id} item={it} seq={i + 1}
+                summary={summaryMap.get(it.id)}
+                onClick={() => onEdit({ kind: 'fase', data: it })} />
             ))
           )}
         </tbody>
       </table>
     </div>
   );
+}
+
+function SummaryBadges({ summary, showHasilAudit }: { summary?: KegiatanSummary; showHasilAudit: boolean }) {
+  if (!summary) return null;
+  const items: React.ReactNode[] = [];
+  if (showHasilAudit) {
+    if (summary.konfirmasi_count > 0) {
+      items.push(
+        <span key="kp" className="inline-flex items-center gap-0.5 text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1 py-0.5"
+          title={`${summary.konfirmasi_count} Konfirmasi Positif`}>
+          <CheckCircle2 className="w-2.5 h-2.5" /> {summary.konfirmasi_count}
+        </span>,
+      );
+    }
+    if (summary.temuan_count > 0) {
+      items.push(
+        <span key="t" className="inline-flex items-center gap-0.5 text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 rounded px-1 py-0.5"
+          title={`${summary.temuan_count} Temuan${summary.temuan_high_count > 0 ? ` (${summary.temuan_high_count} High)` : ''}`}>
+          <AlertTriangle className="w-2.5 h-2.5" /> {summary.temuan_count}
+          {summary.temuan_high_count > 0 && <span className="ml-0.5 font-bold">!</span>}
+        </span>,
+      );
+    }
+    if (summary.ofi_count > 0) {
+      items.push(
+        <span key="o" className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5"
+          title={`${summary.ofi_count} Opportunity for Improvement`}>
+          <Lightbulb className="w-2.5 h-2.5" /> {summary.ofi_count}
+        </span>,
+      );
+    }
+  }
+  if (items.length === 0) return null;
+  return <span className="inline-flex items-center gap-1 ml-2 align-middle">{items}</span>;
 }
 
 function SectionRow({ icon, title }: { icon: React.ReactNode; title: string }) {
@@ -290,7 +343,7 @@ function EmptySubrow({ text }: { text: string }) {
   );
 }
 
-function FaseRow({ item, seq, onClick }: { item: FaseItemM3; seq: number; onClick: () => void }) {
+function FaseRow({ item, seq, onClick, summary }: { item: FaseItemM3; seq: number; onClick: () => void; summary?: KegiatanSummary }) {
   const overdue = isOverdue(item.tanggal_jatuh_tempo, item.status);
   return (
     <tr
@@ -306,6 +359,7 @@ function FaseRow({ item, seq, onClick }: { item: FaseItemM3; seq: number; onClic
         <span className="font-medium text-slate-700 block" style={{ paddingLeft: '0.5rem' }}>
           <span className="text-slate-300 font-mono mr-1">'-&gt;</span>
           {item.title}
+          <SummaryBadges summary={summary} showHasilAudit={false} />
         </span>
       </td>
       <td className="px-5 py-3.5"><StatusBadge status={item.status} /></td>
@@ -327,7 +381,11 @@ function FaseRow({ item, seq, onClick }: { item: FaseItemM3; seq: number; onClic
   );
 }
 
-function PelaksanaanRows({ hier, onEdit }: { hier: HierarkiM3['pelaksanaan']; onEdit: (t: EditTarget) => void }) {
+function PelaksanaanRows({ hier, onEdit, summaryMap }: {
+  hier: HierarkiM3['pelaksanaan'];
+  onEdit: (t: EditTarget) => void;
+  summaryMap: Map<string, KegiatanSummary>;
+}) {
   return (
     <>
       {hier.flatMap((t, ti) => {
@@ -400,11 +458,7 @@ function PelaksanaanRows({ hier, onEdit }: { hier: HierarkiM3['pelaksanaan']; on
                   <td className="px-5 py-3.5">
                     <span className="font-medium text-slate-700 block" style={{ paddingLeft: '3rem' }}>
                       <span className="text-slate-300 font-mono mr-1">'----&gt;</span>{langkah.title}
-                      {langkah.evidence_count > 0 && (
-                        <span className="badge bg-primary-50 text-primary-700 border border-primary-200 ml-2">
-                          📎 {langkah.evidence_count}
-                        </span>
-                      )}
+                      <SummaryBadges summary={summaryMap.get(langkah.id)} showHasilAudit={true} />
                     </span>
                   </td>
                   <td className="px-5 py-3.5"><StatusBadge status={langkah.status} /></td>
@@ -619,9 +673,6 @@ function GanttView({ hier, onEdit }: { hier: HierarkiM3; onEdit: (t: EditTarget)
                 title={r.label}
               >
                 <div className="flex items-center gap-2 min-w-0 w-full">
-                  <span className="text-[9px] font-bold text-slate-500 bg-white border border-slate-200 px-1 py-0.5 rounded shrink-0">
-                    {r.sub}
-                  </span>
                   <span className="text-xs text-slate-700 truncate flex-1">{r.label}</span>
                   <span className={`shrink-0 w-2 h-2 rounded-full ${getBarStyle(r.status, r.deadline).dot}`} />
                 </div>

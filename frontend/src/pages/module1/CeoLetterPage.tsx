@@ -11,10 +11,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  FileText, Upload, Trash2, Plus, Save, Calendar, ChevronRight,
+  FileText, Upload, Trash2, Plus, Save, Loader2, Calendar, ChevronRight,
   AlertTriangle, CheckCircle2, FileDown, Hash, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../components/shared/ConfirmDialog';
 import {
   ceoLetterApi, CeoLetterArea, AreaPrioritas,
 } from '../../services/api';
@@ -28,6 +29,7 @@ export default function CeoLetterPage() {
   const role = useAuthStore((s) => s.user?.role);
   const canEdit = role === 'kepala_spi' || role === 'admin_spi';
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const [tahun, setTahun] = useState(CURRENT_YEAR);
   const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i);
@@ -261,7 +263,22 @@ export default function CeoLetterPage() {
                       onChange={(e) => handleFilePick(e.target.files?.[0] ?? null)} />
                   </label>
                   <button
-                    onClick={() => { if (confirm('Hapus PDF lampiran?')) deleteFileMut.mutate(); }}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        variant: 'danger',
+                        title: 'Hapus PDF Surat CEO?',
+                        description: (
+                          <>
+                            File PDF surat CEO akan dihapus <b>permanen</b> dari sistem.
+                            Anda perlu mengupload ulang jika ingin menggunakannya kembali.
+                            <br /><br />
+                            Data lain (judul, ringkasan, area pengawasan) <b>tidak akan terpengaruh</b>.
+                          </>
+                        ),
+                        confirmLabel: 'Ya, Hapus PDF',
+                      });
+                      if (ok) deleteFileMut.mutate();
+                    }}
                     disabled={deleteFileMut.isPending}
                     className="px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-1.5"
                   >
@@ -406,7 +423,29 @@ export default function CeoLetterPage() {
           <div className="flex items-center gap-2">
             {header && (
               <button
-                onClick={() => { if (confirm(`Hapus CEO Letter tahun ${tahun}? Tindakan ini tidak bisa dibatalkan dengan mudah.`)) removeMut.mutate(); }}
+                onClick={async () => {
+                  const ok = await confirm({
+                    variant: 'danger',
+                    title: `Hapus CEO Letter Tahun ${tahun}?`,
+                    description: (
+                      <>
+                        Seluruh isi CEO Letter tahun <b>{tahun}</b> akan dihapus <b>permanen</b>:
+                        <ul className="list-disc pl-5 mt-2 space-y-0.5 text-xs">
+                          <li>Judul, nomor, tanggal, dan ringkasan surat</li>
+                          <li>Seluruh area pengawasan dan deskripsinya</li>
+                          <li>File PDF lampiran (jika ada)</li>
+                        </ul>
+                        <br />
+                        <span className="text-red-600 font-medium">
+                          Tindakan ini sangat sulit dibatalkan. Hanya lakukan jika benar-benar perlu memulai ulang.
+                        </span>
+                      </>
+                    ),
+                    confirmLabel: 'Ya, Hapus Semua',
+                    requireText: `HAPUS ${tahun}`,
+                  });
+                  if (ok) removeMut.mutate();
+                }}
                 disabled={removeMut.isPending}
                 className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-medium hover:bg-red-50 flex items-center gap-2"
               >
@@ -419,9 +458,9 @@ export default function CeoLetterPage() {
                 upsertMut.mutate();
               }}
               disabled={upsertMut.isPending || !dirty}
-              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+              className="btn-primary disabled:opacity-50"
             >
-              <Save className="w-4 h-4" />
+              {upsertMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {upsertMut.isPending ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>

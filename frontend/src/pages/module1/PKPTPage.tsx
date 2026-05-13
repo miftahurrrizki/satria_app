@@ -68,9 +68,7 @@ export default function PKPTPage() {
         <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-400 transition-all">
           <div className="flex items-center gap-1.5 pl-3 pr-2 py-2 bg-slate-50 border-r border-slate-200">
             <Calendar className="w-4 h-4 text-slate-500" />
-            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider hidden sm:block">
-              Tahun Audit
-            </span>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider hidden sm:block">Tahun</span>
           </div>
           <div className="relative">
             <select
